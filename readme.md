@@ -10,7 +10,8 @@ A full-stack web app that downloads 5 Instagram/YouTube clips, combines them int
 
 ## 1. Install FFmpeg (Required)
 
-The server uses **FFprobe** (part of FFmpeg) for video processing.
+The server uses **FFmpeg** and **FFprobe** for video processing.
+
 
 ### Step 1 – Download FFmpeg
 
@@ -40,14 +41,37 @@ C:\ffmpeg\bin\ffplay.exe
 Open a new terminal and run:
 
 ```
-ffprobe -version
+ffmpeg -version
 ```
 
 If it prints a version number, FFmpeg is installed correctly.
 
 ---
 
-## 2. Install Project Dependencies
+## 2. Install Python & yt-dlp (Required for Instagram Downloads)
+
+While YouTube downloads are handled automatically, Instagram downloads require a local Python environment.
+
+### Step 1 – Install Python
+1. Download Python from: https://www.python.org/downloads/
+2. **CRITICAL:** During installation, check the box **"Add Python to PATH"**.
+
+### Step 2 – Install yt-dlp
+Open a new terminal and run:
+```bash
+pip install yt-dlp
+```
+
+### Step 3 – Verify
+Run:
+```bash
+python -m yt_dlp --version
+```
+If it prints a date (e.g., `2026.03.17`), it is installed correctly.
+
+---
+
+## 3. Install Project Dependencies
 
 From the project root:
 
@@ -63,7 +87,7 @@ npm install
 
 ---
 
-## 3. Configure the `.env` File
+## 4. Configure the `.env` File
 
 The server reads credentials from `server/.env`. It should already exist. Confirm it contains:
 
@@ -97,7 +121,7 @@ CHANNEL_ID=1234567890
 
 ---
 
-## 4. Configure Google OAuth in the Cloud Console
+## 5. Configure Google OAuth in the Cloud Console
 
 Open: https://console.cloud.google.com/apis/credentials
 
@@ -117,7 +141,7 @@ Click **Save**.
 
 ---
 
-## 5. Add Test Users
+## 6. Add Test Users
 
 If your app is not yet verified by Google, only pre-approved accounts can sign in.
 
@@ -131,7 +155,7 @@ Click **Save**.
 
 ---
 
-## 6. Run the Development Servers
+## 7. Run the Development Servers
 
 **Terminal 1 – Backend:**
 
@@ -156,6 +180,10 @@ Open `http://localhost:5173` in your browser.
 ---
 
 ## 7. Common Errors & Fixes
+
+### `yt-dlp is not available`
+Python is not installed or `yt-dlp` was not installed via pip.
+Fix: Complete the "Install Python & yt-dlp" section above.
 
 ### `spawn ffprobe ENOENT`
 FFmpeg is not installed or not in PATH.  
