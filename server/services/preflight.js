@@ -1,5 +1,4 @@
 const { spawnSync } = require('child_process');
-const { resolveYtDlpLauncher } = require('./reelDownload');
 
 function checkCommand(cmd, args) {
     const result = spawnSync(cmd, args, {
@@ -31,12 +30,6 @@ function runStartupChecks() {
     const ffprobe = checkCommand('ffprobe', ['-version']);
     if (!ffprobe.ok) {
         errors.push(`ffprobe not available in PATH (${ffprobe.reason})`);
-    }
-
-    try {
-        resolveYtDlpLauncher();
-    } catch (err) {
-        errors.push(err.message);
     }
 
     return {
