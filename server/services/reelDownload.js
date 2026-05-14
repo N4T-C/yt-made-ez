@@ -10,6 +10,7 @@ const { spawn, spawnSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
+const ytDlpx = require('yt-dlp-exec');
 
 const SERVER_ROOT = path.join(__dirname, '..');
 const REELS_DIR = path.join(SERVER_ROOT, 'reels_downloads');
@@ -176,7 +177,7 @@ function normalizeDownloadUrl(rawUrl) {
  * @returns {Promise<void>}
  */
 function downloadInstagramReel(url, bufferFolder) {
-    return new Promise((resolve, reject) => {
+    return new Promise(async (resolve, reject) => {
         let reelUrl;
         let launcher;
 
@@ -184,6 +185,39 @@ function downloadInstagramReel(url, bufferFolder) {
             reelUrl = normalizeDownloadUrl(url);
         } catch (err) {
             return reject(err);
+        }
+
+        // Use yt-dlp-exec for YouTube downloads to remove direct Python dependency
+        if (reelUrl.includes('youtube.com/watch?v=')) {
+            try {
+                if (!fs.existsSync(REELS_DIR)) {
+                    fs.mkdirSync(REELS_DIR, { recursive: true });
+                }
+                try {
+                    const leftovers = fs.readdirSync(REELS_DIR);
+                    for (const f of leftovers) {
+                        fs.unlinkSync(path.join(REELS_DIR, f));
+                    }
+                } catch { /* ignore */ }
+
+                console.log(`\n📥 Downloading YouTube: ${reelUrl}`);
+                await ytDlpx(reelUrl, {
+                    noWarnings: true,
+                    noPlaylist: true,
+                    noCheckCertificates: true,
+                    format: 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best',
+                    mergeOutputFormat: 'mp4',
+                    output: path.join(REELS_DIR, '%(id)s.%(ext)s'),
+                });
+
+                moveToFolder(bufferFolder, REELS_DIR);
+                fs.rmSync(REELS_DIR, { recursive: true, force: true });
+                fs.mkdirSync(REELS_DIR, { recursive: true });
+                console.log(`✅ YouTube Download complete → ${bufferFolder}`);
+                return resolve();
+            } catch (err) {
+                return reject(new Error(`yt-dlp-exec failed for YouTube URL: ${reelUrl}\n${err.message}`));
+            }
         }
 
         try {
