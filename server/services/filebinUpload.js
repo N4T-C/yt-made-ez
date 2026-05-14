@@ -4,7 +4,12 @@ const path = require('path');
 const fetch = require('node-fetch');
 
 function randomToken(length = 10) {
-    return crypto.randomBytes(Math.ceil(length / 2)).toString('hex').slice(0, length);
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    let result = '';
+    for (let i = 0; i < length; i++) {
+        result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return result;
 }
 
 async function uploadToFilebin(filePath, options = {}) {
@@ -15,14 +20,18 @@ async function uploadToFilebin(filePath, options = {}) {
 
     const fileName = path.basename(filePath);
     const token = randomToken(10);
+    const combined = (key + token).slice(0, 16);
     const safeName = encodeURIComponent(fileName);
-    const url = `https://filebin.net/${key}${token}/${safeName}`;
+    const url = `https://filebin.net/${combined}/${safeName}`;
 
     const stream = fs.createReadStream(filePath);
+    const stats = fs.statSync(filePath);
 
     const res = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/octet-stream' },
+        headers: { 
+            'Content-Length': stats.size 
+        },
         body: stream,
     });
 
