@@ -103,7 +103,7 @@ router.post('/process', async (req, res) => {
             // ── Phase 2: Optional auto-caption ─────────────────────────────
             let finalCaptions = Array.isArray(captions) ? captions.map(c => String(c).trim()) : [];
             let orderedMeta = null;
-            let sortMode = 'filename';
+            let sortMode = 'duration';
 
             if (mode !== 'manual') {
                 emitUpdate(io, jobId, {
