@@ -14,7 +14,6 @@ const POLL_INTERVAL = 2000   // poll every 2 seconds as fallback
 const WIZARD_STATE_KEY = 'rankingWizardState'
 
 const STEPS = [
-    { label: 'Platform', icon: '🎯' },
     { label: 'Video Info', icon: '📝' },
     { label: 'Processing', icon: '⚙️' },
     { label: 'Preview', icon: '🎬' },
@@ -50,13 +49,12 @@ export default function RankingWizard({ onClose, ytDefaults }) {
 
     const [step, setStep] = useState(() => {
         if (!saved) return 0
-        // Can't resume server-side processing (step 2) — go back to step 1
-        if (saved.step === 2) return 1
-        // Steps 3-5 require a valid job on the server — validated later in useEffect
+        // Can't resume server-side processing (step 1) — go back to step 0
+        if (saved.step === 1) return 0
+        // Steps 2-4 require a valid job on the server — validated later in useEffect
         return saved.step ?? 0
     })
     const [direction, setDirection] = useState(1)
-    const [platform, setPlatform] = useState(saved?.platform ?? null)
 
     // Step 1 inputs
     const [videoTitle, setVideoTitle] = useState(saved?.videoTitle ?? '')
@@ -67,7 +65,7 @@ export default function RankingWizard({ onClose, ytDefaults }) {
     // Step 2 — job/processing
     const [jobId, setJobId] = useState(saved?.jobId ?? null)
     const [jobStatus, setJobStatus] = useState(() => {
-        if (saved?.step >= 3 && saved?.jobId) return { status: 'ready', progress: 100, message: '🎉 Video ready!' }
+        if (saved?.step >= 2 && saved?.jobId) return { status: 'ready', progress: 100, message: '🎉 Video ready!' }
         return { status: 'idle', progress: 0, message: 'Starting...' }
     })
     const pollRef = useRef(null)
@@ -116,18 +114,18 @@ export default function RankingWizard({ onClose, ytDefaults }) {
 
     // ── Validate saved job on mount ──────────────────────────────────────────
     useEffect(() => {
-        // Validate saved job still exists on server (for steps 3-5)
-        if (saved?.step >= 3 && saved?.jobId) {
+        // Validate saved job still exists on server (for steps 2-4)
+        if (saved?.step >= 2 && saved?.jobId) {
             axios.get(`${API_URL}/video/status/${saved.jobId}`)
                 .then(r => {
                     if (r.data.status === 'ready') {
                         setJobStatus({ status: 'ready', progress: 100, message: '🎉 Video ready!' })
                     } else {
-                        setStep(1)
+                        setStep(0)
                     }
                 })
                 .catch(() => {
-                    setStep(1)
+                    setStep(0)
                     setJobId(null)
                 })
         }
@@ -140,11 +138,11 @@ export default function RankingWizard({ onClose, ytDefaults }) {
         clearTimeout(saveTimerRef.current)
         saveTimerRef.current = setTimeout(() => {
             localStorage.setItem(WIZARD_STATE_KEY, JSON.stringify({
-                step, platform, videoTitle, links, captions, captionMode, meta, jobId,
+                step, videoTitle, links, captions, captionMode, meta, jobId,
             }))
         }, 300)
         return () => clearTimeout(saveTimerRef.current)
-    }, [step, platform, videoTitle, links, captions, captionMode, meta, jobId])
+    }, [step, videoTitle, links, captions, captionMode, meta, jobId])
 
     // ── Polling + Socket.IO for job status ─────────────────────────────────────
     // Primary: HTTP polling every 2s (reliable)
@@ -162,7 +160,7 @@ export default function RankingWizard({ onClose, ytDefaults }) {
 
             if (data.status === 'ready') {
                 stopPolling()
-                setTimeout(() => { setDirection(1); setStep(3) }, 900)
+                setTimeout(() => { setDirection(1); setStep(2) }, 900)
             }
             if (data.status === 'error') {
                 stopPolling()
@@ -208,12 +206,9 @@ export default function RankingWizard({ onClose, ytDefaults }) {
         setStep(s => s + dir)
     }, [])
 
-    // ── Step 0 — platform selection ───────────────────────────────────────────
-    const selectPlatform = (p) => { setPlatform(p); go(1) }
-
-    // ── Step 1 — start processing ─────────────────────────────────────────────
+    // ── Step 0 — start processing ─────────────────────────────────────────────
     const startProcessing = async () => {
-        go(1) // Switch to step 2 immediately (loading screen)
+        go(1) // Switch to step 1 immediately (loading screen)
         setJobStatus({ status: 'processing', progress: 0, message: 'Submitting job...' })
         setShareStatus(null)
         setShareUrl('')
@@ -294,7 +289,6 @@ export default function RankingWizard({ onClose, ytDefaults }) {
         }
         setStep(0)
         setDirection(-1)
-        setPlatform(null)
         setVideoTitle('')
         setLinks(['', '', '', '', ''])
         setCaptions(['', '', '', '', ''])
@@ -378,29 +372,9 @@ export default function RankingWizard({ onClose, ytDefaults }) {
 
                 {/* Step content */}
                 <AnimatePresence mode="wait" custom={direction}>
-
-                    {/* ── Step 0: Platform ── */}
+                    {/* ── Step 0: Video Info ── */}
                     {step === 0 && (
                         <motion.div key="s0" custom={direction} variants={stepVariants} initial="enter" animate="center" exit="exit">
-                            <p style={{ color: 'var(--text-secondary)', marginBottom: 20 }}>Where are your 5 video clips hosted?</p>
-                            <div className="platform-options">
-                                <button className="platform-btn platform-ig" onClick={() => selectPlatform('instagram')}>
-                                    <FaInstagram style={{ fontSize: 44, color: '#E1306C' }} />
-                                    <span>Instagram</span>
-                                    <small>Reels / Videos</small>
-                                </button>
-                                <button className="platform-btn platform-yt" onClick={() => selectPlatform('youtube')}>
-                                    <FaYoutube style={{ fontSize: 44, color: '#FF0000' }} />
-                                    <span>YouTube</span>
-                                    <small>Videos / Shorts</small>
-                                </button>
-                            </div>
-                        </motion.div>
-                    )}
-
-                    {/* ── Step 1: Video Info ── */}
-                    {step === 1 && (
-                        <motion.div key="s1" custom={direction} variants={stepVariants} initial="enter" animate="center" exit="exit">
                             {/* Title overlay */}
                             <div className="form-group" style={{ marginBottom: 20 }}>
                                 <label className="form-label">📌 Video Title Overlay <SavedIndicator show={savedFields['videoTitle']} /></label>
@@ -420,7 +394,7 @@ export default function RankingWizard({ onClose, ytDefaults }) {
 
                             {/* 5 links */}
                             <label className="form-label" style={{ marginBottom: 10, display: 'block' }}>
-                                {platform === 'instagram' ? '📸 Instagram Reel Links' : '▶️ YouTube Links'} (all 5 required)
+                                ▶️ YouTube / Instagram Links (all 5 required)
                             </label>
                             <div className="links-form" style={{ marginBottom: 20 }}>
                                 {links.map((link, i) => (
@@ -488,7 +462,7 @@ export default function RankingWizard({ onClose, ytDefaults }) {
                             </div>
 
                             <div className="actions-row" style={{ marginTop: 24 }}>
-                                <button className="btn-secondary" onClick={() => go(-1)}><FaArrowLeft /> Back</button>
+                                <button className="btn-secondary" onClick={handleClose}>Cancel</button>
                                 <button
                                     className="btn-primary"
                                     onClick={startProcessing}
@@ -501,9 +475,9 @@ export default function RankingWizard({ onClose, ytDefaults }) {
                         </motion.div>
                     )}
 
-                    {/* ── Step 2: Processing ── */}
-                    {step === 2 && (
-                        <motion.div key="s2" custom={direction} variants={stepVariants} initial="enter" animate="center" exit="exit">
+                    {/* ── Step 1: Processing ── */}
+                    {step === 1 && (
+                        <motion.div key="s1" custom={direction} variants={stepVariants} initial="enter" animate="center" exit="exit">
                             <LoadingAnimation
                                 progress={jobStatus.progress}
                                 message={jobStatus.message || 'Starting pipeline...'}
@@ -519,7 +493,7 @@ export default function RankingWizard({ onClose, ytDefaults }) {
                                     }}>
                                         {jobStatus.message}
                                     </div>
-                                    <button className="btn-secondary" onClick={() => { setStep(1); setDirection(-1); setJobId(null); }}>
+                                    <button className="btn-secondary" onClick={() => { setStep(0); setDirection(-1); setJobId(null); }}>
                                         <FaArrowLeft /> Go Back & Retry
                                     </button>
                                 </div>
@@ -527,9 +501,9 @@ export default function RankingWizard({ onClose, ytDefaults }) {
                         </motion.div>
                     )}
 
-                    {/* ── Step 3: Preview ── */}
-                    {step === 3 && (
-                        <motion.div key="s3" custom={direction} variants={stepVariants} initial="enter" animate="center" exit="exit">
+                    {/* ── Step 2: Preview ── */}
+                    {step === 2 && (
+                        <motion.div key="s2" custom={direction} variants={stepVariants} initial="enter" animate="center" exit="exit">
                             <p style={{ color: 'var(--text-secondary)', marginBottom: 16, fontSize: 14 }}>
                                 🎬 Your video is ready! Watch it below, download it if you like, then click <strong>Next</strong> to set up the YouTube upload.
                             </p>
@@ -580,9 +554,9 @@ export default function RankingWizard({ onClose, ytDefaults }) {
                         </motion.div>
                     )}
 
-                    {/* ── Step 4: YouTube Metadata ── */}
-                    {step === 4 && (
-                        <motion.div key="s4" custom={direction} variants={stepVariants} initial="enter" animate="center" exit="exit">
+                    {/* ── Step 3: YouTube Metadata ── */}
+                    {step === 3 && (
+                        <motion.div key="s3" custom={direction} variants={stepVariants} initial="enter" animate="center" exit="exit">
                             <p style={{ color: 'var(--text-secondary)', marginBottom: 20, fontSize: 14 }}>
                                 ✅ Video processed! Now fill in the YouTube upload details.
                             </p>
@@ -702,9 +676,9 @@ export default function RankingWizard({ onClose, ytDefaults }) {
                         </motion.div>
                     )}
 
-                    {/* ── Step 5: Upload ── */}
-                    {step === 5 && (
-                        <motion.div key="s5" custom={direction} variants={stepVariants} initial="enter" animate="center" exit="exit">
+                    {/* ── Step 4: Upload ── */}
+                    {step === 4 && (
+                        <motion.div key="s4" custom={direction} variants={stepVariants} initial="enter" animate="center" exit="exit">
 
                             {uploadStatus === 'success' ? (
                                 <div className="success-container">
