@@ -49,6 +49,8 @@ export default function Ranking3Wizard({ onClose, ytDefaults }) {
     const [direction, setDirection] = useState(1)
     const [videoTitle, setVideoTitle] = useState(saved?.videoTitle ?? '')
     const [links, setLinks] = useState(saved?.links ?? ['', '', ''])
+    const [captions, setCaptions] = useState(saved?.captions ?? ['', '', ''])
+    const [captionMode, setCaptionMode] = useState(saved?.captionMode ?? 'ai')
 
     const [jobId, setJobId] = useState(saved?.jobId ?? null)
     const [jobStatus, setJobStatus] = useState(() => {
@@ -60,13 +62,28 @@ export default function Ranking3Wizard({ onClose, ytDefaults }) {
 
     const [meta, setMeta] = useState(() => {
         const base = {
-            title: '', description: '', tags: '', privacyStatus: 'private',
-            categoryId: '22', madeForKids: false, language: 'en',
-            defaultAudioLanguage: 'en', recordingDate: new Date().toISOString().split('T')[0],
-            license: 'youtube', embeddable: true, publicStatsViewable: true, notifySubscribers: true,
+            title: '',
+            description: '',
+            tags: '',
+            privacyStatus: 'private',
+            categoryId: '22',
+            madeForKids: false,
+            language: 'en',
+            defaultAudioLanguage: 'en',
+            recordingDate: new Date().toISOString().split('T')[0],
+            license: 'youtube',
+            embeddable: true,
+            publicStatsViewable: true,
+            notifySubscribers: true,
         }
         if (saved?.meta) return { ...base, ...saved.meta, recordingDate: base.recordingDate }
-        if (ytDefaults) return { ...base, ...ytDefaults, recordingDate: base.recordingDate }
+        if (ytDefaults) {
+            // Apply template replacements if needed
+            const processedDefaults = { ...ytDefaults }
+            if (processedDefaults.title) processedDefaults.title = processedDefaults.title.replace(/{title}/g, videoTitle || '')
+            if (processedDefaults.description) processedDefaults.description = processedDefaults.description.replace(/{title}/g, videoTitle || '')
+            return { ...base, ...processedDefaults, recordingDate: base.recordingDate }
+        }
         return base
     })
 
@@ -98,10 +115,29 @@ export default function Ranking3Wizard({ onClose, ytDefaults }) {
         if (!persistRef.current) return
         clearTimeout(saveTimerRef.current)
         saveTimerRef.current = setTimeout(() => {
-            localStorage.setItem(WIZARD_STATE_KEY, JSON.stringify({ step, videoTitle, links, meta, jobId }))
+            localStorage.setItem(WIZARD_STATE_KEY, JSON.stringify({ step, videoTitle, links, captions, captionMode, meta, jobId }))
         }, 300)
         return () => clearTimeout(saveTimerRef.current)
     }, [step, videoTitle, links, meta, jobId])
+
+    // ── Dynamic template replacement ──────────────────────────────────────────
+    useEffect(() => {
+        if (step === 3 && ytDefaults) {
+            setMeta(prev => {
+                const newMeta = { ...prev }
+                let changed = false
+                if (newMeta.title.includes('{title}')) {
+                    newMeta.title = newMeta.title.replace(/{title}/g, videoTitle || '')
+                    changed = true
+                }
+                if (newMeta.description.includes('{title}')) {
+                    newMeta.description = newMeta.description.replace(/{title}/g, videoTitle || '')
+                    changed = true
+                }
+                return changed ? newMeta : prev
+            })
+        }
+    }, [step, videoTitle, ytDefaults])
 
     useEffect(() => {
         if (!jobId) return
@@ -131,6 +167,8 @@ export default function Ranking3Wizard({ onClose, ytDefaults }) {
             const res = await axios.post(`${API_URL}/video/process3`, {
                 videoTitle: videoTitle.trim(),
                 links: links.map(l => l.trim()),
+                captions: captions.map(c => c.trim()),
+                captionMode,
             })
             setJobId(res.data.jobId)
         } catch (err) {
@@ -161,15 +199,23 @@ export default function Ranking3Wizard({ onClose, ytDefaults }) {
     const handleStartOver = useCallback(() => {
         persistRef.current = false; localStorage.removeItem(WIZARD_STATE_KEY)
         if (jobId) axios.post(`${API_URL}/video/cleanup`).catch(() => {})
-        setStep(0); setDirection(-1); setVideoTitle(''); setLinks(['', '', '']); setJobId(null)
+        setStep(0); setDirection(-1); setVideoTitle(''); setLinks(['', '', '']); setCaptions(['', '', '']); setCaptionMode('ai'); setJobId(null)
         setJobStatus({ status: 'idle', progress: 0, message: 'Starting...' })
-        setMeta({ title: '', description: '', tags: '', privacyStatus: 'private', categoryId: '22', madeForKids: false, language: 'en', defaultAudioLanguage: 'en', recordingDate: new Date().toISOString().split('T')[0], license: 'youtube', embeddable: true, publicStatsViewable: true, notifySubscribers: true })
+        setMeta({
+            title: '', description: '', tags: '', privacyStatus: 'private',
+            categoryId: '22', madeForKids: false, language: 'en',
+            defaultAudioLanguage: 'en', recordingDate: new Date().toISOString().split('T')[0],
+            license: 'youtube', embeddable: true, publicStatsViewable: true, notifySubscribers: true,
+        })
         setUploadStatus(null); setUploadError(''); setYoutubeVideoId(null); setShareStatus(null); setShareUrl(''); setShareError('')
         setTimeout(() => { persistRef.current = true }, 100)
     }, [jobId])
 
-    const valid0 = videoTitle.trim() && links.every(l => l.trim())
+    const valid0 = videoTitle.trim() &&
+        links.every(l => l.trim()) &&
+        (captionMode !== 'manual' || captions.every(c => c.trim()))
     const updateLink = (i, v) => setLinks(ls => ls.map((l, j) => j === i ? v : l))
+    const updateCaption = (i, v) => setCaptions(cs => cs.map((c, j) => j === i ? v : c))
     const updateMeta = (k, v) => setMeta(m => ({ ...m, [k]: v }))
     const handleBlur = useCallback((fieldId, value) => { if (value && String(value).trim()) showSaved(fieldId) }, [showSaved])
     const linkColors = ['#EA4335', '#FBBC04', '#34A853']
@@ -221,7 +267,52 @@ export default function Ranking3Wizard({ onClose, ytDefaults }) {
                                 ))}
                             </div>
 
-                            <p style={{ color: 'var(--text-hint)', fontSize: 12, marginBottom: 16 }}>🧠 Captions will be auto-generated by AI (Gemma)</p>
+                            {/* Caption mode */}
+                            <label className="form-label" style={{ marginBottom: 10, display: 'block' }}>
+                                🧩 Caption Mode
+                            </label>
+                            <div className="caption-mode">
+                                {[
+                                    { id: 'manual', label: 'Manual' },
+                                    { id: 'random', label: 'Auto (Random)' },
+                                    { id: 'ai', label: 'Auto (Gemini)' },
+                                ].map(opt => (
+                                    <button
+                                        key={opt.id}
+                                        className={`caption-mode-btn ${captionMode === opt.id ? 'active' : ''}`}
+                                        onClick={() => setCaptionMode(opt.id)}
+                                        type="button"
+                                    >
+                                        {opt.label}
+                                    </button>
+                                ))}
+                            </div>
+                            <span className="form-hint" style={{ display: 'block', marginBottom: 14 }}>
+                                Auto (Gemini) requires `GEMINI_API_KEY` in server/.env. Auto modes use best-effort captions.
+                            </span>
+
+                            {/* 3 captions */}
+                            <label className="form-label" style={{ marginBottom: 10, display: 'block' }}>
+                                💬 Ranking Captions (shown as overlay text)
+                            </label>
+                            <div className="links-form" style={{ marginBottom: 20 }}>
+                                {captions.map((cap, i) => (
+                                    <div className="link-input-group" key={i}>
+                                        <div className="link-number" style={{ background: `${linkColors[i]}22`, color: linkColors[i], border: `1px solid ${linkColors[i]}44` }}>{i + 1}</div>
+                                        <input
+                                            className="form-input"
+                                            type="text"
+                                            placeholder={captionMode === 'manual' ? `Caption for clip ${i + 1}` : 'Auto-generated'}
+                                            value={cap}
+                                            onChange={e => updateCaption(i, e.target.value)}
+                                            onBlur={() => handleBlur(`cap-${i}`, cap)}
+                                            id={`cap3-${i}`}
+                                            disabled={captionMode !== 'manual'}
+                                        />
+                                        <SavedIndicator show={savedFields[`cap-${i}`]} />
+                                    </div>
+                                ))}
+                            </div>
 
                             <div className="actions-row" style={{ marginTop: 24 }}>
                                 <button className="btn-secondary" onClick={handleClose}>Cancel</button>
@@ -267,18 +358,83 @@ export default function Ranking3Wizard({ onClose, ytDefaults }) {
                         <motion.div key="s3" custom={direction} variants={stepVariants} initial="enter" animate="center" exit="exit">
                             <p style={{ color: 'var(--text-secondary)', marginBottom: 20, fontSize: 14 }}>✅ Video processed! Now fill in the YouTube upload details.</p>
                             <div className="metadata-form">
-                                <div className="form-group full-width"><label className="form-label">Video Title <SavedIndicator show={savedFields['yt-title']} /></label><input className="form-input" type="text" placeholder="My 3-Clip Ranking #Shorts" value={meta.title} onChange={e => updateMeta('title', e.target.value)} onBlur={() => handleBlur('yt-title', meta.title)} maxLength={100} /></div>
-                                <div className="form-group full-width"><label className="form-label">Description <SavedIndicator show={savedFields['yt-desc']} /></label><textarea className="form-input" placeholder="Describe your video..." value={meta.description} onChange={e => updateMeta('description', e.target.value)} onBlur={() => handleBlur('yt-desc', meta.description)} maxLength={5000} rows={3} /></div>
-                                <div className="form-group full-width"><label className="form-label">Tags <SavedIndicator show={savedFields['yt-tags']} /></label><input className="form-input" type="text" placeholder="viral, ranking, shorts" value={meta.tags} onChange={e => updateMeta('tags', e.target.value)} onBlur={() => handleBlur('yt-tags', meta.tags)} /></div>
-                                <div className="form-group"><label className="form-label">Privacy</label><select className="form-select" value={meta.privacyStatus} onChange={e => updateMeta('privacyStatus', e.target.value)}><option value="public">Public</option><option value="private">Private</option><option value="unlisted">Unlisted</option></select></div>
-                                <div className="form-group"><label className="form-label">Category</label><select className="form-select" value={meta.categoryId} onChange={e => updateMeta('categoryId', e.target.value)}><option value="15">Pets & Animals</option><option value="23">Comedy</option><option value="24">Entertainment</option><option value="22">People & Blogs</option><option value="20">Gaming</option><option value="17">Sports</option><option value="10">Music</option><option value="27">Education</option></select></div>
-                                <div className="form-group"><label className="form-label">Made for Kids</label><select className="form-select" value={String(meta.madeForKids)} onChange={e => updateMeta('madeForKids', e.target.value === 'true')}><option value="false">No</option><option value="true">Yes</option></select></div>
-                                <div className="form-group"><label className="form-label">Language</label><select className="form-select" value={meta.language} onChange={e => updateMeta('language', e.target.value)}><option value="en">English</option><option value="hi">Hindi</option><option value="es">Spanish</option><option value="fr">French</option></select></div>
-                                <div className="form-group"><label className="form-label">License</label><select className="form-select" value={meta.license} onChange={e => updateMeta('license', e.target.value)}><option value="youtube">Standard YouTube</option><option value="creativeCommon">Creative Commons</option></select></div>
+                                <div className="form-group full-width">
+                                    <label className="form-label">Video Title <SavedIndicator show={savedFields['yt-title']} /></label>
+                                    <input className="form-input" type="text" placeholder="My 3-Clip Ranking #Shorts" value={meta.title} onChange={e => updateMeta('title', e.target.value)} onBlur={() => handleBlur('yt-title', meta.title)} maxLength={100} id="yt3-title" />
+                                    <span className="form-hint">Max 100 chars. Add #Shorts for short-form content.</span>
+                                </div>
+                                <div className="form-group full-width">
+                                    <label className="form-label">Description <SavedIndicator show={savedFields['yt-desc']} /></label>
+                                    <textarea className="form-input" placeholder="Describe your video... use keywords for SEO" value={meta.description} onChange={e => updateMeta('description', e.target.value)} onBlur={() => handleBlur('yt-desc', meta.description)} maxLength={5000} rows={3} id="yt3-desc" />
+                                    <span className="form-hint">Max 5,000 characters.</span>
+                                </div>
+                                <div className="form-group full-width">
+                                    <label className="form-label">Tags <SavedIndicator show={savedFields['yt-tags']} /></label>
+                                    <input className="form-input" type="text" placeholder="viral, cats, ranking, shorts" value={meta.tags} onChange={e => updateMeta('tags', e.target.value)} onBlur={() => handleBlur('yt-tags', meta.tags)} id="yt3-tags" />
+                                    <span className="form-hint">Comma-separated. e.g., "comedy, viral, tutorial"</span>
+                                </div>
+                                <div className="form-group">
+                                    <label className="form-label">Privacy</label>
+                                    <select className="form-select" value={meta.privacyStatus} onChange={e => updateMeta('privacyStatus', e.target.value)} id="yt3-privacy">
+                                        <option value="public">Public</option><option value="private">Private</option><option value="unlisted">Unlisted</option>
+                                    </select>
+                                </div>
+                                <div className="form-group">
+                                    <label className="form-label">Category</label>
+                                    <select className="form-select" value={meta.categoryId} onChange={e => updateMeta('categoryId', e.target.value)} id="yt3-category">
+                                        <option value="15">Pets &amp; Animals</option><option value="23">Comedy</option><option value="24">Entertainment</option><option value="22">People &amp; Blogs</option><option value="20">Gaming</option><option value="17">Sports</option><option value="10">Music</option><option value="27">Education</option><option value="28">Science &amp; Technology</option><option value="1">Film &amp; Animation</option>
+                                    </select>
+                                </div>
+                                <div className="form-group">
+                                    <label className="form-label">Made for Kids</label>
+                                    <select className="form-select" value={String(meta.madeForKids)} onChange={e => updateMeta('madeForKids', e.target.value === 'true')} id="yt3-kids">
+                                        <option value="false">No</option><option value="true">Yes</option>
+                                    </select>
+                                </div>
+                                <div className="form-group">
+                                    <label className="form-label">Language</label>
+                                    <select className="form-select" value={meta.language} onChange={e => updateMeta('language', e.target.value)} id="yt3-lang">
+                                        <option value="en">English</option><option value="hi">Hindi</option><option value="es">Spanish</option><option value="fr">French</option><option value="ta">Tamil</option><option value="te">Telugu</option><option value="ko">Korean</option><option value="ja">Japanese</option><option value="pt">Portuguese</option>
+                                    </select>
+                                </div>
+                                <div className="form-group">
+                                    <label className="form-label">Audio Language</label>
+                                    <select className="form-select" value={meta.defaultAudioLanguage} onChange={e => updateMeta('defaultAudioLanguage', e.target.value)} id="yt3-audiolang">
+                                        <option value="en">English</option><option value="hi">Hindi</option><option value="es">Spanish</option><option value="fr">French</option><option value="ta">Tamil</option><option value="te">Telugu</option><option value="ko">Korean</option><option value="ja">Japanese</option><option value="pt">Portuguese</option>
+                                    </select>
+                                </div>
+                                <div className="form-group">
+                                    <label className="form-label">Recording Date</label>
+                                    <input className="form-input" type="date" value={meta.recordingDate} onChange={e => updateMeta('recordingDate', e.target.value)} id="yt3-date" />
+                                </div>
+                                <div className="form-group">
+                                    <label className="form-label">License</label>
+                                    <select className="form-select" value={meta.license} onChange={e => updateMeta('license', e.target.value)} id="yt3-license">
+                                        <option value="youtube">Standard YouTube</option><option value="creativeCommon">Creative Commons</option>
+                                    </select>
+                                </div>
+                                <div className="form-group">
+                                    <label className="form-label">Embeddable</label>
+                                    <select className="form-select" value={String(meta.embeddable)} onChange={e => updateMeta('embeddable', e.target.value === 'true')} id="yt3-embed">
+                                        <option value="true">Yes</option><option value="false">No</option>
+                                    </select>
+                                </div>
+                                <div className="form-group">
+                                    <label className="form-label">Public Stats</label>
+                                    <select className="form-select" value={String(meta.publicStatsViewable)} onChange={e => updateMeta('publicStatsViewable', e.target.value === 'true')} id="yt3-stats">
+                                        <option value="true">Visible</option><option value="false">Hidden</option>
+                                    </select>
+                                </div>
+                                <div className="form-group">
+                                    <label className="form-label">Notify Subscribers</label>
+                                    <select className="form-select" value={String(meta.notifySubscribers)} onChange={e => updateMeta('notifySubscribers', e.target.value === 'true')} id="yt3-notify">
+                                        <option value="true">Yes</option><option value="false">No</option>
+                                    </select>
+                                </div>
                             </div>
                             <div className="actions-row" style={{ marginTop: 24 }}>
                                 <button className="btn-secondary" onClick={() => go(-1)}><FaArrowLeft /> Back</button>
-                                <button className="btn-primary" onClick={() => go(1)}>Continue to Upload <FaArrowRight /></button>
+                                <button className="btn-primary" onClick={() => go(1)} id="to-upload3-btn">Continue to Upload <FaArrowRight /></button>
                             </div>
                         </motion.div>
                     )}

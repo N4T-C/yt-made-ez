@@ -199,21 +199,25 @@ export default function Home() {
                                 borderRadius: 16, padding: 24, marginBottom: 24,
                             }}>
                                 <h3 style={{ margin: '0 0 6px', fontSize: 18 }}>⚙️ Default YouTube Upload Settings</h3>
-                                <p style={{ color: 'var(--text-secondary)', fontSize: 13, margin: '0 0 20px' }}>
-                                    These will pre-fill the YT Details step every time you create a video.
+                                <p style={{ color: 'var(--text-secondary)', fontSize: 13, margin: '0 0 20px', lineHeight: 1.5 }}>
+                                    These settings will pre-fill the YT Details step. <br />
+                                    <span style={{ color: 'var(--accent-primary, #FBBC04)' }}>Tip:</span> Use <code style={{ background: '#ffffff10', padding: '2px 4px', borderRadius: 4 }}>{'{title}'}</code> in the title or description to automatically insert the "Video Title Overlay" from Step 1.
                                 </p>
                                 <div className="metadata-form">
                                     <div className="form-group full-width">
                                         <label className="form-label">Default Title</label>
                                         <input className="form-input" type="text" placeholder="My Ranking Video #Shorts" value={defaultsForm.title} onChange={e => updateDefault('title', e.target.value)} maxLength={100} />
+                                        <span className="form-hint">Use {'{title}'} for dynamic titles.</span>
                                     </div>
                                     <div className="form-group full-width">
                                         <label className="form-label">Default Description</label>
-                                        <textarea className="form-input" placeholder="Describe your video..." value={defaultsForm.description} onChange={e => updateDefault('description', e.target.value)} maxLength={5000} rows={3} />
+                                        <textarea className="form-input" placeholder="Describe your video..." value={defaultsForm.description} onChange={e => updateDefault('description', e.target.value)} maxLength={5000} rows={4} />
+                                        <span className="form-hint">Use {'{title}'} to include the video title in description.</span>
                                     </div>
                                     <div className="form-group full-width">
                                         <label className="form-label">Default Tags</label>
                                         <input className="form-input" type="text" placeholder="viral, cats, ranking, shorts" value={defaultsForm.tags} onChange={e => updateDefault('tags', e.target.value)} />
+                                        <span className="form-hint">Comma-separated keywords.</span>
                                     </div>
                                     <div className="form-group">
                                         <label className="form-label">Privacy</label>

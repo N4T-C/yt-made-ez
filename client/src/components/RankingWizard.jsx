@@ -89,7 +89,12 @@ export default function RankingWizard({ onClose, ytDefaults }) {
             notifySubscribers: true,
         }
         if (saved?.meta) return { ...base, ...saved.meta, recordingDate: base.recordingDate }
-        if (ytDefaults) return { ...base, ...ytDefaults, recordingDate: base.recordingDate }
+        if (ytDefaults) {
+            const processedDefaults = { ...ytDefaults }
+            if (processedDefaults.title) processedDefaults.title = processedDefaults.title.replace(/{title}/g, videoTitle || '')
+            if (processedDefaults.description) processedDefaults.description = processedDefaults.description.replace(/{title}/g, videoTitle || '')
+            return { ...base, ...processedDefaults, recordingDate: base.recordingDate }
+        }
         return base
     })
 
@@ -143,6 +148,25 @@ export default function RankingWizard({ onClose, ytDefaults }) {
         }, 300)
         return () => clearTimeout(saveTimerRef.current)
     }, [step, videoTitle, links, captions, captionMode, meta, jobId])
+
+    // ── Dynamic template replacement ──────────────────────────────────────────
+    useEffect(() => {
+        if (step === 3 && ytDefaults) {
+            setMeta(prev => {
+                const newMeta = { ...prev }
+                let changed = false
+                if (newMeta.title.includes('{title}')) {
+                    newMeta.title = newMeta.title.replace(/{title}/g, videoTitle || '')
+                    changed = true
+                }
+                if (newMeta.description.includes('{title}')) {
+                    newMeta.description = newMeta.description.replace(/{title}/g, videoTitle || '')
+                    changed = true
+                }
+                return changed ? newMeta : prev
+            })
+        }
+    }, [step, videoTitle, ytDefaults])
 
     // ── Polling + Socket.IO for job status ─────────────────────────────────────
     // Primary: HTTP polling every 2s (reliable)
