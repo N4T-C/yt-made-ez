@@ -17,6 +17,7 @@ const { ffmpegPath, ffprobePath } = require('ffmpeg-ffprobe-static');
 const MODEL = 'gemma-4-31b-it';
 const MAX_DURATION = 56; // seconds — Gemma hard limit is 60 s; use 56 for safety
 
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function parseCategories() {
