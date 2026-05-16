@@ -1,29 +1,26 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import RankingWizard from '../components/RankingWizard'
+import Ranking3Wizard from '../components/Ranking3Wizard'
+import DiscordSetup from '../components/DiscordSetup'
 import { useAuth } from '../context/AuthContext'
 import { FaYoutube, FaSave, FaGoogle } from 'react-icons/fa'
 
 const FEATURES = [
     {
-        icon: '🏆', label: 'Create Ranking Video',
-        desc: 'Combine 5 clips with animated rankings, title overlays, and captions. Upload straight to YouTube.',
-        iconClass: 'card-icon-red', active: true, id: 'ranking',
+        icon: '🏆', label: 'Create 5 Clip Ranking Video',
+        desc: 'Combine 5 clips with animated rankings, title overlays, and AI captions. Upload straight to YouTube.',
+        iconClass: 'card-icon-red', active: true, id: 'ranking5',
     },
     {
-        icon: '😂', label: 'Create Meme Compilation',
-        desc: 'Stitch together viral memes into an epic compilation with transitions and effects.',
-        iconClass: 'card-icon-yellow', active: false, id: 'meme',
+        icon: '🎬', label: 'Create 3 Clip Ranking Video',
+        desc: 'Quick 3-clip ranking with AI captions, perfect overlays, trimmed to 57s. Upload to YouTube.',
+        iconClass: 'card-icon-yellow', active: true, id: 'ranking3',
     },
     {
-        icon: '✨', label: 'Create Highlights Reel',
-        desc: 'Auto-edit the best moments into a polished highlights video with music.',
-        iconClass: 'card-icon-purple', active: false, id: 'highlights',
-    },
-    {
-        icon: '🔮', label: 'More Coming Soon',
-        desc: 'New automation types are in development. Stay tuned!',
-        iconClass: 'card-icon-blue', active: false, id: 'more',
+        icon: '🤖', label: 'Activate Discord Automation',
+        desc: 'Connect a Discord bot to auto-download video links and upload them to Filebin instantly.',
+        iconClass: 'card-icon-green', active: true, id: 'discord',
     },
 ]
 
@@ -135,12 +132,12 @@ export default function Home() {
                     <motion.button
                         className="btn-primary"
                         style={{ fontSize: 17, padding: '14px 36px' }}
-                        onClick={() => setActiveWizard('ranking')}
+                        onClick={() => setActiveWizard('ranking5')}
                         whileHover={{ scale: 1.04 }}
                         whileTap={{ scale: 0.97 }}
                         id="get-started-btn"
                     >
-                        🏆 Create a Ranking Video
+                        🏆 Create a 5 Clip Ranking Video
                     </motion.button>
                 </motion.div>
             </section>
@@ -149,29 +146,26 @@ export default function Home() {
             <section className="cards-section">
                 <h2 className="section-title">
                     <span style={{ color: 'var(--text-secondary)', fontWeight: 400, fontSize: 16, display: 'block', marginBottom: 6 }}>
-                        WHAT WOULD YOU LIKE TO CREATE?
+                        WHAT WOULD YOU LIKE TO DO?
                     </span>
-                    Choose a Video Type
+                    Choose an Action
                 </h2>
 
                 <div className="cards-grid">
                     {FEATURES.map((f, i) => (
                         <motion.div
                             key={f.id}
-                            className={`feature-card ${f.active ? 'active' : 'muted'}`}
+                            className={`feature-card active`}
                             initial={{ opacity: 0, y: 30 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ duration: 0.4, delay: i * 0.08, ease: [0.16, 1, 0.3, 1] }}
-                            onClick={() => f.active && setActiveWizard(f.id)}
+                            onClick={() => setActiveWizard(f.id)}
                             id={`card-${f.id}`}
                         >
-                            {!f.active && <div className="card-badge">Soon</div>}
                             <div className={`card-icon ${f.iconClass}`}>{f.icon}</div>
                             <h3 className="card-title">{f.label}</h3>
                             <p className="card-desc">{f.desc}</p>
-                            {f.active && (
-                                <p className="card-arrow">Start now →</p>
-                            )}
+                            <p className="card-arrow">Start now →</p>
                         </motion.div>
                     ))}
                 </div>
@@ -224,87 +218,55 @@ export default function Home() {
                                     <div className="form-group">
                                         <label className="form-label">Privacy</label>
                                         <select className="form-select" value={defaultsForm.privacyStatus} onChange={e => updateDefault('privacyStatus', e.target.value)}>
-                                            <option value="public">Public</option>
-                                            <option value="private">Private</option>
-                                            <option value="unlisted">Unlisted</option>
+                                            <option value="public">Public</option><option value="private">Private</option><option value="unlisted">Unlisted</option>
                                         </select>
                                     </div>
                                     <div className="form-group">
                                         <label className="form-label">Category</label>
                                         <select className="form-select" value={defaultsForm.categoryId} onChange={e => updateDefault('categoryId', e.target.value)}>
-                                            <option value="15">Pets &amp; Animals</option>
-                                            <option value="23">Comedy</option>
-                                            <option value="24">Entertainment</option>
-                                            <option value="22">People &amp; Blogs</option>
-                                            <option value="20">Gaming</option>
-                                            <option value="17">Sports</option>
-                                            <option value="10">Music</option>
-                                            <option value="27">Education</option>
-                                            <option value="28">Science &amp; Technology</option>
-                                            <option value="1">Film &amp; Animation</option>
+                                            <option value="15">Pets &amp; Animals</option><option value="23">Comedy</option><option value="24">Entertainment</option><option value="22">People &amp; Blogs</option><option value="20">Gaming</option><option value="17">Sports</option><option value="10">Music</option><option value="27">Education</option><option value="28">Science &amp; Technology</option><option value="1">Film &amp; Animation</option>
                                         </select>
                                     </div>
                                     <div className="form-group">
                                         <label className="form-label">Made for Kids</label>
                                         <select className="form-select" value={String(defaultsForm.madeForKids)} onChange={e => updateDefault('madeForKids', e.target.value === 'true')}>
-                                            <option value="false">No</option>
-                                            <option value="true">Yes</option>
+                                            <option value="false">No</option><option value="true">Yes</option>
                                         </select>
                                     </div>
                                     <div className="form-group">
                                         <label className="form-label">Language</label>
                                         <select className="form-select" value={defaultsForm.language} onChange={e => updateDefault('language', e.target.value)}>
-                                            <option value="en">English</option>
-                                            <option value="hi">Hindi</option>
-                                            <option value="es">Spanish</option>
-                                            <option value="fr">French</option>
-                                            <option value="ta">Tamil</option>
-                                            <option value="te">Telugu</option>
-                                            <option value="ko">Korean</option>
-                                            <option value="ja">Japanese</option>
-                                            <option value="pt">Portuguese</option>
+                                            <option value="en">English</option><option value="hi">Hindi</option><option value="es">Spanish</option><option value="fr">French</option><option value="ta">Tamil</option><option value="te">Telugu</option><option value="ko">Korean</option><option value="ja">Japanese</option><option value="pt">Portuguese</option>
                                         </select>
                                     </div>
                                     <div className="form-group">
                                         <label className="form-label">Audio Language</label>
                                         <select className="form-select" value={defaultsForm.defaultAudioLanguage} onChange={e => updateDefault('defaultAudioLanguage', e.target.value)}>
-                                            <option value="en">English</option>
-                                            <option value="hi">Hindi</option>
-                                            <option value="es">Spanish</option>
-                                            <option value="fr">French</option>
-                                            <option value="ta">Tamil</option>
-                                            <option value="te">Telugu</option>
-                                            <option value="ko">Korean</option>
-                                            <option value="ja">Japanese</option>
-                                            <option value="pt">Portuguese</option>
+                                            <option value="en">English</option><option value="hi">Hindi</option><option value="es">Spanish</option><option value="fr">French</option><option value="ta">Tamil</option><option value="te">Telugu</option><option value="ko">Korean</option><option value="ja">Japanese</option><option value="pt">Portuguese</option>
                                         </select>
                                     </div>
                                     <div className="form-group">
                                         <label className="form-label">License</label>
                                         <select className="form-select" value={defaultsForm.license} onChange={e => updateDefault('license', e.target.value)}>
-                                            <option value="youtube">Standard YouTube</option>
-                                            <option value="creativeCommon">Creative Commons</option>
+                                            <option value="youtube">Standard YouTube</option><option value="creativeCommon">Creative Commons</option>
                                         </select>
                                     </div>
                                     <div className="form-group">
                                         <label className="form-label">Embeddable</label>
                                         <select className="form-select" value={String(defaultsForm.embeddable)} onChange={e => updateDefault('embeddable', e.target.value === 'true')}>
-                                            <option value="true">Yes</option>
-                                            <option value="false">No</option>
+                                            <option value="true">Yes</option><option value="false">No</option>
                                         </select>
                                     </div>
                                     <div className="form-group">
                                         <label className="form-label">Public Stats</label>
                                         <select className="form-select" value={String(defaultsForm.publicStatsViewable)} onChange={e => updateDefault('publicStatsViewable', e.target.value === 'true')}>
-                                            <option value="true">Visible</option>
-                                            <option value="false">Hidden</option>
+                                            <option value="true">Visible</option><option value="false">Hidden</option>
                                         </select>
                                     </div>
                                     <div className="form-group">
                                         <label className="form-label">Notify Subscribers</label>
                                         <select className="form-select" value={String(defaultsForm.notifySubscribers)} onChange={e => updateDefault('notifySubscribers', e.target.value === 'true')}>
-                                            <option value="true">Yes</option>
-                                            <option value="false">No</option>
+                                            <option value="true">Yes</option><option value="false">No</option>
                                         </select>
                                     </div>
                                 </div>
@@ -325,10 +287,16 @@ export default function Home() {
                 </AnimatePresence>
             </section>
 
-            {/* Wizard modal */}
+            {/* Wizard modals */}
             <AnimatePresence>
-                {activeWizard === 'ranking' && (
+                {activeWizard === 'ranking5' && (
                     <RankingWizard onClose={() => setActiveWizard(null)} ytDefaults={ytDefaults} />
+                )}
+                {activeWizard === 'ranking3' && (
+                    <Ranking3Wizard onClose={() => setActiveWizard(null)} ytDefaults={ytDefaults} />
+                )}
+                {activeWizard === 'discord' && (
+                    <DiscordSetup onClose={() => setActiveWizard(null)} />
                 )}
             </AnimatePresence>
         </div>

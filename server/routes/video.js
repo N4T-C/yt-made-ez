@@ -7,8 +7,8 @@ const express = require('express');
 const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
 const { downloadInstagramReel, getNextBufferFolder } = require('../services/reelDownload');
-const { combineBuffer, probeClips, sortClips } = require('../services/combine');
-const { addTextToVideo } = require('../services/addText');
+const { combineBuffer, combineBuffer3, probeClips, sortClips } = require('../services/combine');
+const { addTextToVideo, addTextToVideo3 } = require('../services/addText');
 const { purgeAllVideos } = require('../services/cleanup');
 const { uploadToYouTube } = require('../services/youtubeUpload');
 const { generateCaptions, getRandomCaption } = require('../services/captionGenerator');
@@ -202,6 +202,158 @@ router.post('/process', async (req, res) => {
                 status: 'ready',
                 progress: 100,
                 message: '🎉 Video ready! Fill in YouTube upload details.',
+                outputFile: trimmedVideo,
+            });
+
+        } catch (error) {
+            console.error(`[job:${jobId}] ERROR:`, error.message);
+            emitUpdate(io, jobId, {
+                status: 'error',
+                progress: jobs[jobId]?.progress || 0,
+                message: error.message,
+            });
+            purgeAllVideos();
+        }
+    });
+});
+
+/**
+ * POST /api/video/process3
+ * Body: { videoTitle, links: string[3] }
+ * 3-clip ranking video — AI captions only, trimmed to 57 seconds.
+ */
+router.post('/process3', async (req, res) => {
+    const { videoTitle, links } = req.body;
+    const io = req.app.get('io');
+
+    if (!videoTitle || typeof videoTitle !== 'string' || !videoTitle.trim()) {
+        return res.status(400).json({ error: 'videoTitle is required' });
+    }
+    if (!Array.isArray(links) || links.length !== 3 || links.some(l => !l || !l.trim())) {
+        return res.status(400).json({ error: 'Exactly 3 non-empty links are required' });
+    }
+
+    const jobId = uuidv4();
+
+    jobs[jobId] = {
+        status: 'processing',
+        progress: 0,
+        message: 'Starting 3-clip download pipeline...',
+        outputFile: null,
+    };
+
+    res.json({ jobId });
+
+    setImmediate(async () => {
+        let bufferFolder = null;
+        let folderName = null;
+
+        try {
+            purgeAllVideos();
+
+            bufferFolder = getNextBufferFolder();
+            folderName = path.basename(bufferFolder);
+
+            // ── Phase 1: Download 3 clips ──────────────────────────────────
+            for (let i = 0; i < 3; i++) {
+                emitUpdate(io, jobId, {
+                    status: 'processing',
+                    progress: Math.round(i * 12),
+                    message: `📥 Downloading clip ${i + 1} of 3...`,
+                });
+
+                await downloadInstagramReel(links[i], bufferFolder);
+
+                emitUpdate(io, jobId, {
+                    status: 'processing',
+                    progress: Math.round((i + 1) * 12),
+                    message: `✅ Clip ${i + 1} downloaded`,
+                });
+            }
+
+            // ── Phase 2: AI captions ─────────────────────────────────
+            emitUpdate(io, jobId, {
+                status: 'processing',
+                progress: 40,
+                message: '🧠 Generating AI captions...',
+            });
+
+            const clipMeta = await probeClips(bufferFolder, 3);
+            const orderedMeta = sortClips(clipMeta, 'duration');
+
+            let finalCaptions = [];
+            for (let i = 0; i < orderedMeta.length; i++) {
+                try {
+                    const result = await classifyClip(orderedMeta[i].filePath, {
+                        fallbackCaption: getRandomCaption(),
+                    });
+                    let cap = result.caption;
+                    if (/clip\s*\d*/i.test(cap) || cap.trim().toLowerCase() === 'clip') {
+                        cap = getRandomCaption();
+                    }
+                    finalCaptions.push(cap);
+                } catch (err) {
+                    finalCaptions.push(getRandomCaption());
+                }
+            }
+
+            // Safety net
+            finalCaptions = finalCaptions.map(cap => {
+                const lower = String(cap).trim().toLowerCase();
+                if (lower.includes('clip') || lower.includes('video') || lower.match(/clip\s*\d*/i)) {
+                    return getRandomCaption();
+                }
+                return cap;
+            });
+
+            while (finalCaptions.length < 3) finalCaptions.push(getRandomCaption());
+            if (finalCaptions.length > 3) finalCaptions = finalCaptions.slice(0, 3);
+
+            // ── Phase 3: Combine ───────────────────────────────────────────
+            emitUpdate(io, jobId, {
+                status: 'processing',
+                progress: 50,
+                message: '🎬 Combining 3 clips into one video...',
+            });
+
+            const { names, timestamps, outputFile } = await combineBuffer3(folderName, {
+                clipMeta: orderedMeta,
+                sortMode: 'provided',
+            });
+
+            emitUpdate(io, jobId, {
+                status: 'processing',
+                progress: 68,
+                message: '✅ Clips combined!',
+            });
+
+            // ── Phase 4: Text overlay ──────────────────────────────────────
+            emitUpdate(io, jobId, {
+                status: 'processing',
+                progress: 72,
+                message: '🖊️  Adding title & caption overlays...',
+            });
+
+            const finalVideo = await addTextToVideo3(
+                outputFile,
+                videoTitle.trim(),
+                finalCaptions,
+                timestamps
+            );
+
+            emitUpdate(io, jobId, {
+                status: 'processing',
+                progress: 88,
+                message: '✂️ Trimming video to 57 seconds...',
+            });
+
+            const trimmedVideo = await trimVideoInPlace(finalVideo, 57);
+
+            // ── Done ───────────────────────────────────────────────────────
+            emitUpdate(io, jobId, {
+                status: 'ready',
+                progress: 100,
+                message: '🎉 3-clip video ready! Fill in YouTube upload details.',
                 outputFile: trimmedVideo,
             });
 
