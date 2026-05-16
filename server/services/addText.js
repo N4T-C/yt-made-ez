@@ -7,6 +7,7 @@ const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
+const { ffmpegPath } = require('ffmpeg-ffprobe-static');
 
 const SERVER_ROOT = path.join(__dirname, '..');
 
@@ -211,7 +212,7 @@ function addTextToVideo(inputVideo, videoTitle, captions, timestamps) {
         ];
 
         console.log('\n🖊️  Running ffmpeg text overlay...');
-        const proc = spawn('ffmpeg', ffmpegArgs, { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
+        const proc = spawn(ffmpegPath, ffmpegArgs, { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
 
         let stderr = '';
         proc.stderr.on('data', d => { stderr += d.toString(); });
@@ -350,7 +351,7 @@ function addTextToVideo3(inputVideo, videoTitle, captions, timestamps) {
         ];
 
         console.log('\n🖊️  Running ffmpeg text overlay (3-clip)...');
-        const proc = spawn('ffmpeg', ffmpegArgs, { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
+        const proc = spawn(ffmpegPath, ffmpegArgs, { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
 
         let stderr = '';
         proc.stderr.on('data', d => { stderr += d.toString(); });

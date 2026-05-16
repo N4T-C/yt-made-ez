@@ -1,6 +1,7 @@
 const { spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
+const { ffmpegPath, ffprobePath } = require('ffmpeg-ffprobe-static');
 
 function probeDuration(filePath) {
     return new Promise((resolve, reject) => {
@@ -11,7 +12,7 @@ function probeDuration(filePath) {
             filePath,
         ];
 
-        const proc = spawn('ffprobe', args, { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
+        const proc = spawn(ffprobePath, args, { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
         let stdout = '';
         let stderr = '';
 
@@ -58,7 +59,7 @@ function trimVideoInPlace(filePath, maxSeconds) {
                 tempFile,
             ];
 
-            const proc = spawn('ffmpeg', args, { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
+            const proc = spawn(ffmpegPath, args, { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
             let stderr = '';
             proc.stderr.on('data', d => { stderr += d.toString(); });
 

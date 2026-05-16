@@ -9,6 +9,7 @@
 const path = require('path');
 const fs = require('fs');
 const ytDlpx = require('yt-dlp-exec');
+const { ffmpegPath } = require('ffmpeg-ffprobe-static');
 
 const SERVER_ROOT = path.join(__dirname, '..');
 const REELS_DIR = path.join(SERVER_ROOT, 'reels_downloads');
@@ -148,6 +149,7 @@ function downloadInstagramReel(url, bufferFolder) {
                 format: 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best',
                 mergeOutputFormat: 'mp4',
                 output: path.join(REELS_DIR, '%(id)s.%(ext)s'),
+                ffmpegLocation: ffmpegPath,
             });
 
             moveToFolder(bufferFolder, REELS_DIR);

@@ -1,4 +1,5 @@
 const { spawnSync } = require('child_process');
+const { ffmpegPath, ffprobePath } = require('ffmpeg-ffprobe-static');
 
 function checkCommand(cmd, args) {
     const result = spawnSync(cmd, args, {
@@ -22,14 +23,14 @@ function checkCommand(cmd, args) {
 function runStartupChecks() {
     const errors = [];
 
-    const ffmpeg = checkCommand('ffmpeg', ['-version']);
+    const ffmpeg = checkCommand(ffmpegPath, ['-version']);
     if (!ffmpeg.ok) {
-        errors.push(`ffmpeg not available in PATH (${ffmpeg.reason})`);
+        errors.push(`ffmpeg not available at ${ffmpegPath} (${ffmpeg.reason})`);
     }
 
-    const ffprobe = checkCommand('ffprobe', ['-version']);
+    const ffprobe = checkCommand(ffprobePath, ['-version']);
     if (!ffprobe.ok) {
-        errors.push(`ffprobe not available in PATH (${ffprobe.reason})`);
+        errors.push(`ffprobe not available at ${ffprobePath} (${ffprobe.reason})`);
     }
 
     return {

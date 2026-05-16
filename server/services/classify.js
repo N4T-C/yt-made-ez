@@ -5,6 +5,7 @@
  */
 const { spawn } = require('child_process');
 const fetch = require('node-fetch');
+const { ffmpegPath, ffprobePath } = require('ffmpeg-ffprobe-static');
 
 const MODEL = 'gemma-4-31b-it';
 
@@ -43,7 +44,7 @@ function probeDuration(filePath) {
             '-of', 'default=noprint_wrappers=1:nokey=1',
             filePath,
         ];
-        const proc = spawn('ffprobe', args, { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
+        const proc = spawn(ffprobePath, args, { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
         let stdout = '';
         let stderr = '';
         proc.stdout.on('data', d => { stdout += d.toString(); });
@@ -74,7 +75,7 @@ function extractFrameAt(filePath, seekSeconds) {
             'pipe:1',
         ];
 
-        const proc = spawn('ffmpeg', args, { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
+        const proc = spawn(ffmpegPath, args, { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
         const chunks = [];
         let stderr = '';
 

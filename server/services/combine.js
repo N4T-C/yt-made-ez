@@ -6,6 +6,7 @@
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
+const { ffmpegPath, ffprobePath } = require('ffmpeg-ffprobe-static');
 
 const SERVER_ROOT = path.join(__dirname, '..');
 const BUFFER_DIR = path.join(SERVER_ROOT, 'buffer');
@@ -26,7 +27,7 @@ function probeVideo(filePath) {
             filePath,
         ];
 
-        const proc = spawn('ffprobe', args, { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
+        const proc = spawn(ffprobePath, args, { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
         let stdout = '';
         let stderr = '';
         proc.stdout.on('data', d => { stdout += d.toString(); });
@@ -215,7 +216,7 @@ async function combineBuffer(folderName, options = {}) {
         console.log('\n🎬 Running ffmpeg concat...');
         console.log('Output:', outputFile);
 
-        const proc = spawn('ffmpeg', ffmpegArgs, { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
+        const proc = spawn(ffmpegPath, ffmpegArgs, { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
 
         let stderr = '';
         proc.stderr.on('data', d => { stderr += d.toString(); });
@@ -339,7 +340,7 @@ async function combineBuffer3(folderName, options = {}) {
         console.log('\n🎬 Running ffmpeg concat (3 clips)...');
         console.log('Output:', outputFile);
 
-        const proc = spawn('ffmpeg', ffmpegArgs, { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
+        const proc = spawn(ffmpegPath, ffmpegArgs, { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
 
         let stderr = '';
         proc.stderr.on('data', d => { stderr += d.toString(); });
