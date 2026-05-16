@@ -43,7 +43,7 @@ export default function DiscordSetup({ onClose }) {
         pollRef.current = setInterval(fetchStatus, 5000)
 
         try {
-            const socket = io('http://localhost:5000', { transports: ['websocket', 'polling'] })
+            const socket = io(import.meta.env.DEV ? 'http://localhost:5000' : window.location.origin, { transports: ['websocket', 'polling'] })
             socketRef.current = socket
             socket.on('discord:status', data => {
                 setActive(data.running)

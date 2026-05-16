@@ -1,0 +1,22 @@
+{
+  "name": "yt-automation-studio",
+  "version": "1.0.0",
+  "main": "electron/main.js",
+  "private": true,
+  "scripts": {
+    "dev": "npx concurrently \"cd client && npm run dev\" \"npx wait-on http://localhost:5173 && npx electron .\"",
+    "dev:web": "npx concurrently \"cd server && npm start\" \"cd client && npm run dev\"",
+    "build:client": "cd client && npm run build",
+    "build:electron": "npm run build:client && npx electron-builder --win",
+    "start": "npx electron .",
+    "pack": "npx electron-builder --dir",
+    "dist": "npm run build:client && npx electron-builder --win --publish never",
+    "dist:portable": "npm run build:client && npx electron-builder --win portable --publish never"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "electron": "^42.1.0",
+    "electron-builder": "^26.8.1",
+    "wait-on": "^8.0.3"
+  }
+}

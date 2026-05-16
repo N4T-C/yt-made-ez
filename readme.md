@@ -4,46 +4,95 @@ A full-stack web app that downloads 5 Instagram/YouTube clips, combines them int
 
 ---
 
+# 🖥️ Electron Desktop App – Run & Build
+
+This project now supports an Electron desktop app that embeds the existing Express server and serves the React UI from the same process.
+
+## 0. Prerequisites
+
+- Node.js 18+ (20+ recommended)
+
+## 1. Install Dependencies (All three locations)
+
+From the project root:
+
+```bash
+# Root (Electron tooling)
+npm install
+
+# Server
+cd server
+npm install
+
+# Client
+cd ../client
+npm install
+
+cd ..
+```
+
+## 2. Configure the .env file
+
+### Development
+
+Edit the existing file:
+
+```
+server/.env
+```
+
+### Packaged app (production)
+
+On first launch, the app copies `server/.env.example` to your userData folder.
+Edit the file here after the first run:
+
+```
+%APPDATA%\yt-automation-studio\.env
+```
+
+## 3. Run Electron (Dev)
+
+This runs Vite on port 5173 and starts Electron with the embedded backend.
+
+```bash
+npm run dev
+```
+
+## 4. Run Electron (Production-style)
+
+This builds the React frontend and serves it from the embedded Express server.
+
+```bash
+npm run build:client
+npm start
+```
+
+## 5. Package Windows Executables
+
+```bash
+# Installer + portable build
+npm run dist
+
+# Portable only
+npm run dist:portable
+```
+
+Build outputs land in:
+
+```
+release/
+```
+
+---
+
 # 🖥️ Web App Setup Guide – Local Development
 
 ---
 
-## 1. Install FFmpeg (Required)
+## 1. FFmpeg (Bundled by default)
 
-The server uses **FFmpeg** and **FFprobe** for video processing.
-
-### Step 1 – Download FFmpeg
-
-Go to: https://www.gyan.dev/ffmpeg/builds/
-
-Download: `ffmpeg-release-essentials.zip`
-
-### Step 2 – Extract to `C:\ffmpeg`
-
-After extracting you should have:
-
-```
-C:\ffmpeg\bin\ffmpeg.exe
-C:\ffmpeg\bin\ffprobe.exe
-C:\ffmpeg\bin\ffplay.exe
-```
-
-### Step 3 – Add to System PATH
-
-1. Press **Windows Key** → search **Edit the system environment variables**
-2. Click **Environment Variables**
-3. Under **System Variables** find **Path** → click **Edit**
-4. Click **New** → paste `C:\ffmpeg\bin` → click **OK**
-
-### Step 4 – Verify
-
-Open a new terminal and run:
-
-```
-ffmpeg -version
-```
-
-If it prints a version number, FFmpeg is installed correctly.
+FFmpeg and FFprobe are provided by the `ffmpeg-ffprobe-static` npm package, so a system install is not required.
+If you already have FFmpeg in PATH, it will not interfere.
 
 ---
 

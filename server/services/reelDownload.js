@@ -12,8 +12,9 @@ const ytDlpx = require('yt-dlp-exec');
 const { ffmpegPath } = require('ffmpeg-ffprobe-static');
 
 const SERVER_ROOT = path.join(__dirname, '..');
-const REELS_DIR = path.join(SERVER_ROOT, 'reels_downloads');
-const BUFFER_DIR = path.join(SERVER_ROOT, 'buffer');
+const WRITABLE_ROOT = process.env.YT_DATA_DIR || SERVER_ROOT;
+const REELS_DIR = path.join(WRITABLE_ROOT, 'reels_downloads');
+const BUFFER_DIR = path.join(WRITABLE_ROOT, 'buffer');
 
 const YOUTUBE_ID_REGEX = /^[A-Za-z0-9_-]{11}$/;
 

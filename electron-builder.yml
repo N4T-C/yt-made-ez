@@ -1,0 +1,33 @@
+appId: com.ytautomation.studio
+productName: YT Automation Studio
+copyright: Copyright (c) 2026
+win:
+  target:
+    - nsis
+    - portable
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+portable:
+  artifactName: "YT-Automation-Studio-Portable.exe"
+files:
+  - "electron/**/*"
+  - "server/**/*"
+  - "client/dist/**/*"
+  - "!server/.env"
+  - "!**/node_modules/.cache"
+  - "!**/.git"
+extraResources:
+  - from: "server/fonts"
+    to: "fonts"
+    filter: ["**/*.ttf"]
+asar: true
+asarUnpack:
+  - "server/node_modules/ffmpeg-ffprobe-static/**"
+  - "server/node_modules/yt-dlp-exec/**"
+  - "server/node_modules/.package-lock.json"
+directories:
+  output: release
+  buildResources: build

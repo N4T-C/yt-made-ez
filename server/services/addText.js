@@ -40,6 +40,15 @@ function getFont() {
         }
     }
 
+    // 2.5. Electron packaged resources (when fonts are copied to resources/fonts)
+    if (process.resourcesPath) {
+        const resourceFont = path.join(process.resourcesPath, 'fonts', 'OpenSansExtraBold.ttf');
+        if (fs.existsSync(resourceFont)) {
+            console.log('Font (electron resources):', resourceFont);
+            return resourceFont;
+        }
+    }
+
     // 3. Windows system fonts
     if (os.platform() === 'win32') {
         const winDir = process.env.WINDIR || 'C:\\Windows';

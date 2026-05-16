@@ -3,6 +3,7 @@ const cors = require('cors');
 const http = require('http');
 const { Server } = require('socket.io');
 const path = require('path');
+const fs = require('fs');
 require('dotenv').config();
 
 const videoRoutes = require('./routes/video');
@@ -41,6 +42,16 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// Serve built React frontend in production (when client/dist exists)
+const clientDistPath = path.join(__dirname, '..', 'client', 'dist');
+if (fs.existsSync(clientDistPath)) {
+  app.use(express.static(clientDistPath));
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api/') || req.path.startsWith('/socket.io/')) return next();
+    res.sendFile(path.join(clientDistPath, 'index.html'));
+  });
+}
+
 // Socket.IO connection
 io.on('connection', (socket) => {
   console.log('🔌 Client connected:', socket.id);
@@ -49,37 +60,56 @@ io.on('connection', (socket) => {
   });
 });
 
-// Clean up leftover video files from previous sessions on startup
-purgeAllVideos();
-
-// Periodic cleanup of abandoned videos (default: every 30 minutes)
-const CLEANUP_INTERVAL_MS = parseInt(process.env.CLEANUP_INTERVAL_MS, 10) || 30 * 60 * 1000;
-setInterval(() => purgeAllVideos(), CLEANUP_INTERVAL_MS);
-
 const PORT = process.env.PORT || 5000;
 
-const startupChecks = runStartupChecks();
-if (!startupChecks.ok) {
-  console.error('\n❌ Startup checks failed:');
-  for (const err of startupChecks.errors) {
-    console.error(`  - ${err}`);
+let cleanupIntervalId = null;
+
+function startServer(options = {}) {
+  const resolvedPort = options.port || PORT;
+
+  const startupChecks = runStartupChecks();
+  if (!startupChecks.ok) {
+    console.error('\n❌ Startup checks failed:');
+    for (const err of startupChecks.errors) {
+      console.error(`  - ${err}`);
+    }
+    console.error('\nFix the missing dependencies and restart the server.');
+    return Promise.reject(new Error('Startup checks failed'));
   }
-  console.error('\nFix the missing dependencies and restart the server.');
-  process.exit(1);
+
+  // Clean up leftover video files from previous sessions on startup
+  purgeAllVideos();
+
+  // Periodic cleanup of abandoned videos (default: every 30 minutes)
+  const CLEANUP_INTERVAL_MS = parseInt(process.env.CLEANUP_INTERVAL_MS, 10) || 30 * 60 * 1000;
+  if (!cleanupIntervalId) {
+    cleanupIntervalId = setInterval(() => purgeAllVideos(), CLEANUP_INTERVAL_MS);
+  }
+
+  return new Promise((resolve, reject) => {
+    const onError = (err) => {
+      if (err.code === 'EADDRINUSE') {
+        console.error(`\n❌ Port ${resolvedPort} is already in use!\n`);
+        console.error('To fix this, run the following in PowerShell:');
+        console.error(`  Stop-Process -Id (Get-NetTCPConnection -LocalPort ${resolvedPort} | Select-Object -ExpandProperty OwningProcess) -Force\n`);
+        console.error("Then run 'node index.js' again.");
+      } else {
+        console.error('Server startup error:', err);
+      }
+      reject(err);
+    };
+
+    server.once('error', onError);
+    server.listen(resolvedPort, () => {
+      server.off('error', onError);
+      console.log(`🚀 Server running on http://localhost:${resolvedPort}`);
+      resolve({ port: resolvedPort, server });
+    });
+  });
 }
 
-server.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
-});
+if (require.main === module) {
+  startServer().catch(() => process.exit(1));
+}
 
-server.on('error', (err) => {
-  if (err.code === 'EADDRINUSE') {
-    console.error(`\n❌ Port ${PORT} is already in use!\n`);
-    console.error(`To fix this, run the following in PowerShell:`);
-    console.error(`  Stop-Process -Id (Get-NetTCPConnection -LocalPort ${PORT} | Select-Object -ExpandProperty OwningProcess) -Force\n`);
-    console.error(`Then run 'node index.js' again.`);
-    process.exit(1);
-  } else {
-    throw err;
-  }
-});
+module.exports = { startServer, app };

@@ -151,7 +151,7 @@ export default function Ranking3Wizard({ onClose, ytDefaults }) {
         }
         const startPolling = () => { pollRef.current = setInterval(async () => { try { const res = await axios.get(`${API_URL}/video/status/${jobId}`); applyUpdate(res.data) } catch {} }, POLL_INTERVAL) }
         const stopPolling = () => { if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null } if (socketRef.current) { socketRef.current.disconnect(); socketRef.current = null } }
-        try { const socket = io('http://localhost:5000', { transports: ['websocket', 'polling'] }); socketRef.current = socket; socket.on(`job:${jobId}`, applyUpdate) } catch {}
+        try { const socket = io(import.meta.env.DEV ? 'http://localhost:5000' : window.location.origin, { transports: ['websocket', 'polling'] }); socketRef.current = socket; socket.on(`job:${jobId}`, applyUpdate) } catch {}
         startPolling()
         axios.get(`${API_URL}/video/status/${jobId}`).then(r => applyUpdate(r.data)).catch(() => {})
         return stopPolling

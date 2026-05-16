@@ -9,7 +9,8 @@ const fs = require('fs');
 const { ffmpegPath, ffprobePath } = require('ffmpeg-ffprobe-static');
 
 const SERVER_ROOT = path.join(__dirname, '..');
-const BUFFER_DIR = path.join(SERVER_ROOT, 'buffer');
+const WRITABLE_ROOT = process.env.YT_DATA_DIR || SERVER_ROOT;
+const BUFFER_DIR = path.join(WRITABLE_ROOT, 'buffer');
 
 const TARGET_W = 1080;
 const TARGET_H = 1920;
@@ -115,7 +116,7 @@ function sortClips(meta, sortMode = 'filename') {
 async function combineBuffer(folderName, options = {}) {
     const { clipMeta, sortMode = 'filename', cleanup = true } = options;
     const bufferFolder = path.join(BUFFER_DIR, folderName);
-    const outputFile = path.join(SERVER_ROOT, `combined_${folderName}.mp4`);
+    const outputFile = path.join(WRITABLE_ROOT, `combined_${folderName}.mp4`);
 
     let probes = clipMeta;
     if (!probes) {
@@ -251,7 +252,7 @@ async function combineBuffer(folderName, options = {}) {
 async function combineBuffer3(folderName, options = {}) {
     const { clipMeta, sortMode = 'filename', cleanup = true } = options;
     const bufferFolder = path.join(BUFFER_DIR, folderName);
-    const outputFile = path.join(SERVER_ROOT, `combined_${folderName}.mp4`);
+    const outputFile = path.join(WRITABLE_ROOT, `combined_${folderName}.mp4`);
 
     let probes = clipMeta;
     if (!probes) {

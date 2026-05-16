@@ -208,7 +208,7 @@ export default function RankingWizard({ onClose, ytDefaults }) {
 
         // Socket.IO (bonus — gives instant updates)
         try {
-            const socket = io('http://localhost:5000', { transports: ['websocket', 'polling'] })
+            const socket = io(import.meta.env.DEV ? 'http://localhost:5000' : window.location.origin, { transports: ['websocket', 'polling'] })
             socketRef.current = socket
             socket.on(`job:${jobId}`, applyUpdate)
             socket.on('connect_error', () => { /* fallback to polling is fine */ })
