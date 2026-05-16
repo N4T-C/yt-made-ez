@@ -1,6 +1,6 @@
 # 🐱 yt-kitty-automate
 
-A full-stack web app that downloads 5 Instagram/YouTube clips, combines them into a single 1080×1920 vertical video, burns ranked captions and a title overlay onto the video, and uploads the final result directly to YouTube — all from your browser
+A full-stack web app that downloads 5 Instagram/YouTube clips, combines them into a single 1080×1920 vertical video, burns ranked captions and a title overlay onto the video, and uploads the final result directly to YouTube — all from your browser.
 
 ---
 
