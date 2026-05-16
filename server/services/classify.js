@@ -104,8 +104,9 @@ async function extractMultipleFrames(filePath, count = 3) {
         duration = 5;
     }
 
-    // Pick timestamps spread across the clip: 20%, 50%, 80% of duration
-    const percentages = count === 1 ? [0.5] : [0.2, 0.5, 0.8].slice(0, count);
+    // Pick timestamps spread across the clip
+    const allPcts = [0.1, 0.3, 0.5, 0.7, 0.9];
+    const percentages = count === 1 ? [0.5] : allPcts.slice(0, count);
     const frames = [];
 
     for (const pct of percentages) {
@@ -145,10 +146,10 @@ async function classifyClip(filePath, options = {}) {
         };
     }
 
-    // Extract 3 frames spread across the clip for a better understanding
+    // Extract 5 frames spread across the clip for a better understanding
     let frames;
     try {
-        frames = await extractMultipleFrames(filePath, 3);
+        frames = await extractMultipleFrames(filePath, 5);
     } catch (err) {
         console.error('[classify] Frame extraction failed:', err.message);
         return {
@@ -164,14 +165,15 @@ async function classifyClip(filePath, options = {}) {
         'You will receive multiple frames from the SAME video clip.',
         'Your task:',
         `1. Choose exactly one category from this list: ${categories.join(', ')}`,
-        '2. Write a caption that is EXACTLY 1 word (2 words MAXIMUM — only if absolutely needed).',
+        '2. Write a caption that is 1 or 2 words. Vary naturally — some clips deserve a single punchy word, others need a two-word phrase.',
         '   - The caption MUST reflect what is actually happening in the clip.',
-        '   - GOOD examples: "Zoomies", "Chaos", "Hunting", "Melting", "Flop".',
-        '   - BAD examples: "Cat Moment", "Great Clip", "So Cute" (too generic or too long).',
-        '   - CRITICAL RULE: NEVER use the word "Clip", "Video", or ANY numbers (like 1, 2, 3) in your caption. Only output the pure vibe/action word.',
+        '   - GOOD 1-word examples: "Zoomies", "Chaos", "Hunting", "Flop", "Stretch".',
+        '   - GOOD 2-word examples: "Pure Chaos", "Soft Landing", "Big Stretch", "Sneak Attack", "Full Speed".',
+        '   - BAD examples: "Cat Moment", "Great Clip", "So Cute", "Nice Video" (too generic).',
+        '   - CRITICAL RULE: NEVER use the word "Clip", "Video", or ANY numbers in your caption.',
         '   - Use action words, emotions, or specific behaviors seen in the frames.',
         '3. Respond ONLY with strict JSON — no extra text, no markdown:',
-        '   {"category":"chosen category","caption":"oneword"}',
+        '   {"category":"chosen category","caption":"your caption"}',
     ].join('\n');
 
     // Build the multipart request — include all frames as inline images
