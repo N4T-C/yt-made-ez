@@ -223,11 +223,22 @@ router.post('/process', async (req, res) => {
  * 3-clip ranking video — AI captions only, trimmed to 57 seconds.
  */
 router.post('/process3', async (req, res) => {
-    const { videoTitle, links } = req.body;
+    const { videoTitle, links, captions, captionMode } = req.body;
     const io = req.app.get('io');
+    const mode = String(captionMode || 'ai').toLowerCase();
+    const allowedModes = new Set(['manual', 'random', 'ai']);
+
+    if (!allowedModes.has(mode)) {
+        return res.status(400).json({ error: 'captionMode must be one of: manual, random, ai' });
+    }
 
     if (!videoTitle || typeof videoTitle !== 'string' || !videoTitle.trim()) {
         return res.status(400).json({ error: 'videoTitle is required' });
+    }
+    if (mode === 'manual') {
+        if (!Array.isArray(captions) || captions.length !== 3 || captions.some(c => !c || !c.trim())) {
+            return res.status(400).json({ error: 'Exactly 3 non-empty captions are required for manual mode' });
+        }
     }
     if (!Array.isArray(links) || links.length !== 3 || links.some(l => !l || !l.trim())) {
         return res.status(400).json({ error: 'Exactly 3 non-empty links are required' });
@@ -271,30 +282,43 @@ router.post('/process3', async (req, res) => {
                 });
             }
 
-            // ── Phase 2: AI captions ─────────────────────────────────
-            emitUpdate(io, jobId, {
-                status: 'processing',
-                progress: 40,
-                message: '🧠 Generating AI captions...',
-            });
+            // ── Phase 2: Captions ─────────────────────────────────
+            let finalCaptions = Array.isArray(captions) ? captions.map(c => String(c).trim()) : [];
+            let orderedMeta = null;
 
-            const clipMeta = await probeClips(bufferFolder, 3);
-            const orderedMeta = sortClips(clipMeta, 'duration');
+            if (mode !== 'manual') {
+                emitUpdate(io, jobId, {
+                    status: 'processing',
+                    progress: 40,
+                    message: mode === 'ai' ? '🧠 Generating AI captions...' : '🎲 Generating random captions...',
+                });
 
-            let finalCaptions = [];
-            for (let i = 0; i < orderedMeta.length; i++) {
-                try {
-                    const result = await classifyClip(orderedMeta[i].filePath, {
-                        fallbackCaption: getRandomCaption(),
-                    });
-                    let cap = result.caption;
-                    if (/clip\s*\d*/i.test(cap) || cap.trim().toLowerCase() === 'clip') {
-                        cap = getRandomCaption();
+                const clipMeta = await probeClips(bufferFolder, 3);
+                orderedMeta = sortClips(clipMeta, 'duration');
+
+                if (mode === 'ai') {
+                    finalCaptions = [];
+                    for (let i = 0; i < orderedMeta.length; i++) {
+                        try {
+                            const result = await classifyClip(orderedMeta[i].filePath, {
+                                fallbackCaption: getRandomCaption(),
+                            });
+                            let cap = result.caption;
+                            if (/clip\s*\d*/i.test(cap) || cap.trim().toLowerCase() === 'clip') {
+                                cap = getRandomCaption();
+                            }
+                            finalCaptions.push(cap);
+                        } catch (err) {
+                            finalCaptions.push(getRandomCaption());
+                        }
                     }
-                    finalCaptions.push(cap);
-                } catch (err) {
-                    finalCaptions.push(getRandomCaption());
+                } else {
+                    finalCaptions = generateCaptions(3);
                 }
+            } else {
+                // Manual mode — still need to probe and sort clips for consistency
+                const clipMeta = await probeClips(bufferFolder, 3);
+                orderedMeta = sortClips(clipMeta, 'duration');
             }
 
             // Safety net
