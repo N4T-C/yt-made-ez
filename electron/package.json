@@ -1,0 +1,58 @@
+{
+    "name": "yt-made-ez-electron",
+    "version": "1.0.0",
+    "description": "YT Made EZ — Desktop Electron App",
+    "main": "main.js",
+    "scripts": {
+        "start": "electron .",
+        "dev": "cross-env ELECTRON_DEV=true electron .",
+        "build-renderer": "cd renderer && npm run build",
+        "dev:all": "concurrently \"cd renderer && npm run dev\" \"cross-env ELECTRON_DEV=true electron .\"",
+        "pack": "npm run build-renderer && electron-builder --dir",
+        "dist": "npm run build-renderer && electron-builder"
+    },
+    "dependencies": {
+        "@google/genai": "^2.3.0",
+        "discord.js": "^14.26.4",
+        "dotenv": "^16.4.7",
+        "ffmpeg-ffprobe-static": "^6.1.2-rc.1",
+        "googleapis": "^144.0.0",
+        "node-fetch": "^2.7.0",
+        "uuid": "^11.1.0",
+        "yt-dlp-exec": "^1.0.2"
+    },
+    "devDependencies": {
+        "concurrently": "^8.2.2",
+        "cross-env": "^7.0.3",
+        "electron": "^33.0.0",
+        "electron-builder": "^24.13.3"
+    },
+    "build": {
+        "appId": "com.ytmadeez.app",
+        "productName": "YT Made EZ",
+        "directories": {
+            "output": "dist-app"
+        },
+        "asar": true,
+        "asarUnpack": [
+            "**/node_modules/ffmpeg-ffprobe-static/**/*",
+            "**/node_modules/yt-dlp-exec/**/*"
+        ],
+        "files": [
+            "**/*",
+            "!renderer/src/**/*",
+            "!renderer/node_modules/**/*",
+            "!renderer/package.json",
+            "!renderer/vite.config.js"
+        ],
+        "win": {
+            "target": [
+                "nsis"
+            ]
+        },
+        "nsis": {
+            "oneClick": false,
+            "allowToChangeInstallationDirectory": true
+        }
+    }
+}
