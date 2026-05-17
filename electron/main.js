@@ -12,7 +12,29 @@
 const { app, BrowserWindow, ipcMain, protocol, session } = require('electron');
 const path = require('path');
 const fs = require('fs');
-require('dotenv').config({ path: path.join(__dirname, '.env') });
+// Load .env with fallback locations for production builds.
+// In production, __dirname is inside app.asar (readable via Electron's patched fs).
+// We also check next to the executable and in userData so users can override.
+const dotenv = require('dotenv');
+const envCandidates = [
+    path.join(path.dirname(process.execPath), '.env'),              // next to the .exe (portable override)
+    path.join(app.getPath('userData'), '.env'),                     // %AppData%/yt-made-ez-electron/.env
+    path.join(__dirname, '.env'),                                   // inside asar (bundled default)
+];
+let envLoaded = false;
+for (const envPath of envCandidates) {
+    try {
+        const result = dotenv.config({ path: envPath });
+        if (!result.error) {
+            console.log(`✅ Loaded .env from: ${envPath}`);
+            envLoaded = true;
+            break;
+        }
+    } catch { /* try next */ }
+}
+if (!envLoaded) {
+    console.warn('⚠️ No .env file found. Using defaults / system environment variables.');
+}
 
 const { registerIpcHandlers } = require('./ipcHandlers');
 const { purgeAllVideos } = require('./services/cleanup');

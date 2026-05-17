@@ -6,9 +6,10 @@
 const fs = require('fs');
 const path = require('path');
 
-// In Electron, __dirname is electron/ (where this file lives in services/)
-// So BASE_DIR is the electron/ folder itself.
-const BASE_DIR = path.join(__dirname, '..');
+// In Electron, __dirname is inside app.asar when built, which is read-only.
+// We must use the writable app.getPath('userData') directory for working folders.
+const { app } = require('electron');
+const BASE_DIR = app ? app.getPath('userData') : path.join(__dirname, '..');
 
 /**
  * Delete all intermediate video files and working directories.

@@ -9,9 +9,12 @@
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
-const { ffmpegPath, ffprobePath } = require('ffmpeg-ffprobe-static');
+const { getFfmpegPath, getFfprobePath } = require('./binaryPaths');
+const cleanedFfmpegPath = getFfmpegPath();
+const cleanedFfprobePath = getFfprobePath();
 
-const SERVER_ROOT = path.join(__dirname, '..');   // electron/
+const { app } = require('electron');
+const SERVER_ROOT = app ? app.getPath('userData') : path.join(__dirname, '..');   // Writable AppData folder
 const BUFFER_DIR  = path.join(SERVER_ROOT, 'buffer');
 
 const TARGET_W = 1080;
@@ -30,7 +33,7 @@ function probeVideo(filePath) {
             filePath,
         ];
 
-        const proc = spawn(ffprobePath, args, { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
+        const proc = spawn(cleanedFfprobePath, args, { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
         let stdout = '';
         let stderr = '';
         proc.stdout.on('data', d => { stdout += d.toString(); });
@@ -198,7 +201,7 @@ async function combineBuffer(folderName, options = {}) {
         console.log('\n🎬 Running ffmpeg concat...');
         console.log('Output:', outputFile);
 
-        const proc = spawn(ffmpegPath, ffmpegArgs, { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
+        const proc = spawn(cleanedFfmpegPath, ffmpegArgs, { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
 
         let stderr = '';
         proc.stderr.on('data', d => { stderr += d.toString(); });
@@ -320,7 +323,7 @@ async function combineBuffer3(folderName, options = {}) {
         console.log('\n🎬 Running ffmpeg concat (3 clips)...');
         console.log('Output:', outputFile);
 
-        const proc = spawn(ffmpegPath, ffmpegArgs, { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
+        const proc = spawn(cleanedFfmpegPath, ffmpegArgs, { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
 
         let stderr = '';
         proc.stderr.on('data', d => { stderr += d.toString(); });

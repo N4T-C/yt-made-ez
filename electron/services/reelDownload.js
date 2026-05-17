@@ -9,10 +9,10 @@
  */
 const path = require('path');
 const fs = require('fs');
-const ytDlpx = require('yt-dlp-exec');
-const { ffmpegPath } = require('ffmpeg-ffprobe-static');
+const { getYtDlpPath, getFfmpegPath } = require('./binaryPaths');
 
-const SERVER_ROOT = path.join(__dirname, '..');        // electron/
+const { app } = require('electron');
+const SERVER_ROOT = app ? app.getPath('userData') : path.join(__dirname, '..');        // Writable AppData folder
 const REELS_DIR   = path.join(SERVER_ROOT, 'reels_downloads');
 const BUFFER_DIR  = path.join(SERVER_ROOT, 'buffer');
 
@@ -142,15 +142,22 @@ function downloadInstagramReel(url, bufferFolder) {
                 }
             } catch { /* ignore */ }
 
+            // Resolve binary paths (handles asar unpacking automatically)
+            const ytDlpBinaryPath = getYtDlpPath();
+            const cleanedFfmpegPath = getFfmpegPath();
+
             console.log(`\n📥 Downloading: ${reelUrl}`);
-            await ytDlpx(reelUrl, {
+            const { create: createYoutubeDl } = require('yt-dlp-exec');
+            const ytDlpInstance = createYoutubeDl(ytDlpBinaryPath);
+
+            await ytDlpInstance(reelUrl, {
                 noWarnings: true,
                 noPlaylist: true,
                 noCheckCertificates: true,
                 format: 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best',
                 mergeOutputFormat: 'mp4',
                 output: path.join(REELS_DIR, '%(id)s.%(ext)s'),
-                ffmpegLocation: ffmpegPath,
+                ffmpegLocation: cleanedFfmpegPath,
             });
 
             moveToFolder(bufferFolder, REELS_DIR);

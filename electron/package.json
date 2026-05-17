@@ -33,6 +33,11 @@
         "directories": {
             "output": "dist-app"
         },
+        "asar": true,
+        "asarUnpack": [
+            "**/node_modules/ffmpeg-ffprobe-static/**/*",
+            "**/node_modules/yt-dlp-exec/**/*"
+        ],
         "files": [
             "**/*",
             "!renderer/src/**/*",

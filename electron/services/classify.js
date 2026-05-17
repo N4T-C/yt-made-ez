@@ -7,7 +7,9 @@ const os = require('os');
 const path = require('path');
 const { spawn } = require('child_process');
 const { GoogleGenAI } = require('@google/genai');
-const { ffmpegPath, ffprobePath } = require('ffmpeg-ffprobe-static');
+const { getFfmpegPath, getFfprobePath } = require('./binaryPaths');
+const ffmpegPath = getFfmpegPath();
+const ffprobePath = getFfprobePath();
 
 const MODEL = 'gemma-4-31b-it';
 const MAX_DURATION = 56;

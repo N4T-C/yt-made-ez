@@ -10,21 +10,28 @@ const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
-const { ffmpegPath } = require('ffmpeg-ffprobe-static');
+const { getFfmpegPath, getAppRoot } = require('./binaryPaths');
+const cleanedFfmpegPath = getFfmpegPath();
 
-const SERVER_ROOT = path.join(__dirname, '..');   // electron/
+const { app } = require('electron');
+const SERVER_ROOT = app ? app.getPath('userData') : path.join(__dirname, '..');   // Writable AppData folder
 
 /**
  * Find a usable font file.
- * Priority: .env FONT_PATH → fonts/ dir inside electron/ → Windows system fonts → Linux fonts
+ * Priority: .env FONT_PATH → fonts/ dir bundled with app → Windows system fonts → Linux fonts
  */
 function getFont() {
+    // The app's own source root (inside asar in production, electron/ folder in dev).
+    // Fonts ship with the app code, NOT in the writable userData folder.
+    const appRoot = getAppRoot();
+
     // 1. Try FONT_PATH env (supports relative + absolute)
     let envFont = process.env.FONT_PATH;
     if (envFont) {
         envFont = envFont.trim().replace(/['"]/g, '');
         if (!path.isAbsolute(envFont)) {
-            envFont = path.resolve(SERVER_ROOT, envFont);
+            // Resolve relative to the app root (where fonts/ lives), not userData
+            envFont = path.resolve(appRoot, envFont);
         }
         if (fs.existsSync(envFont)) {
             console.log('Font from .env:', envFont);
@@ -32,9 +39,9 @@ function getFont() {
         }
     }
 
-    // 2. Bundled fonts/ folder (inside electron/)
+    // 2. Bundled fonts/ folder (shipped with the app)
     const bundledFonts = [
-        path.join(SERVER_ROOT, 'fonts', 'OpenSansExtraBold.ttf'),
+        path.join(appRoot, 'fonts', 'OpenSansExtraBold.ttf'),
     ];
     for (const f of bundledFonts) {
         if (fs.existsSync(f)) {
@@ -196,7 +203,7 @@ function addTextToVideo(inputVideo, videoTitle, captions, timestamps) {
         ];
 
         console.log('\n🖊️  Running ffmpeg text overlay...');
-        const proc = spawn(ffmpegPath, ffmpegArgs, { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
+        const proc = spawn(cleanedFfmpegPath, ffmpegArgs, { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
 
         let stderr = '';
         proc.stderr.on('data', d => { stderr += d.toString(); });
@@ -319,7 +326,7 @@ function addTextToVideo3(inputVideo, videoTitle, captions, timestamps) {
         ];
 
         console.log('\n🖊️  Running ffmpeg text overlay (3-clip)...');
-        const proc = spawn(ffmpegPath, ffmpegArgs, { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
+        const proc = spawn(cleanedFfmpegPath, ffmpegArgs, { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
 
         let stderr = '';
         proc.stderr.on('data', d => { stderr += d.toString(); });
