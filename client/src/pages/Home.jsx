@@ -2,9 +2,11 @@ import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import RankingWizard from '../components/RankingWizard'
 import Ranking3Wizard from '../components/Ranking3Wizard'
+import CompileWizard from '../components/CompileWizard'
 import DiscordSetup from '../components/DiscordSetup'
 import { useAuth } from '../context/AuthContext'
-import { FaYoutube, FaSave, FaGoogle } from 'react-icons/fa'
+import { FaYoutube, FaSave, FaGoogle, FaMagic } from 'react-icons/fa'
+import axios from 'axios'
 
 const FEATURES = [
     {
@@ -16,6 +18,11 @@ const FEATURES = [
         icon: '🎬', label: 'Create 3 Clip Ranking Video',
         desc: 'Quick 3-clip ranking with AI captions, perfect overlays, trimmed to 57s. Upload to YouTube.',
         iconClass: 'card-icon-yellow', active: true, id: 'ranking3',
+    },
+    {
+        icon: '📎', label: 'Compile Clips or Memes',
+        desc: 'Combine dynamic lists of clips or memes, set limits and constraints, auto-caption, and upload.',
+        iconClass: 'card-icon-purple', active: true, id: 'compile',
     },
     {
         icon: '🤖', label: 'Activate Discord Automation',
@@ -43,6 +50,64 @@ export default function Home() {
         publicStatsViewable: true, notifySubscribers: true,
     })
     const [defaultsSaved, setDefaultsSaved] = useState(false)
+    const [nicheInput, setNicheInput] = useState('')
+    const [aiDefaultsLoading, setAiDefaultsLoading] = useState(false)
+
+    const applyPreset = (presetKey) => {
+        const presets = {
+            gaming: {
+                title: 'Gaming Highlights | {title} #Shorts',
+                description: 'Epic gaming highlights! Hope you enjoy.\n\n#Shorts #gaming #gamer #gamingshorts',
+                tags: 'gaming, gamer, gameplay, gaming shorts, viral, xbox, playstation'
+            },
+            memes: {
+                title: 'Daily Meme Compilation | {title} #Shorts',
+                description: 'The funniest memes of the day!\n\n#Shorts #memes #funny #viral #humor',
+                tags: 'memes, funny, humor, daily memes, lol, joke, compilation'
+            },
+            pets: {
+                title: 'Cute Animal Moments | {title} #Shorts',
+                description: 'Adorable pets doing funny things!\n\n#Shorts #pets #animals #cute #cats #dogs',
+                tags: 'cute, pets, animals, funny pets, cats, dogs, cute kittens'
+            },
+            rankings: {
+                title: 'Ranking the Best: {title} #Shorts',
+                description: 'Our ultimate ranking of the best moments!\n\n#Shorts #ranking #top5 #viral',
+                tags: 'ranking, top 5, top 10, viral ranking, best moments'
+            }
+        }
+        const p = presets[presetKey]
+        if (p) {
+            setDefaultsForm(prev => ({
+                ...prev,
+                title: p.title,
+                description: p.description,
+                tags: p.tags
+            }))
+        }
+    }
+
+    const generateAiDefaults = async () => {
+        if (!nicheInput.trim()) return
+        setAiDefaultsLoading(true)
+        try {
+            const res = await axios.post('/api/video/suggest-metadata', {
+                videoTitle: nicheInput.trim(),
+                captions: [],
+                category: defaultsForm.categoryId
+            })
+            setDefaultsForm(prev => ({
+                ...prev,
+                title: res.data.title || prev.title,
+                description: res.data.description || prev.description,
+                tags: res.data.tags || prev.tags
+            }))
+        } catch (err) {
+            console.error('AI Defaults generation failed:', err)
+        } finally {
+            setAiDefaultsLoading(false)
+        }
+    }
 
     const updateDefault = (k, v) => setDefaultsForm(d => ({ ...d, [k]: v }))
 
@@ -203,6 +268,54 @@ export default function Home() {
                                     These settings will pre-fill the YT Details step. <br />
                                     <span style={{ color: 'var(--accent-primary, #FBBC04)' }}>Tip:</span> Use <code style={{ background: '#ffffff10', padding: '2px 4px', borderRadius: 4 }}>{'{title}'}</code> in the title or description to automatically insert the "Video Title Overlay" from Step 1.
                                 </p>
+                                {/* Quick Niche Presets */}
+                                <div style={{ marginBottom: 18 }}>
+                                    <label className="form-label" style={{ display: 'block', marginBottom: 8 }}>⚡ Quick Niche Presets</label>
+                                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                                        {[
+                                            { key: 'gaming', label: '🎮 Gaming Highlights' },
+                                            { key: 'memes', label: '😂 Daily Memes' },
+                                            { key: 'pets', label: '🐱 Cute Pets' },
+                                            { key: 'rankings', label: '🏆 Ultimate Rankings' },
+                                        ].map(preset => (
+                                            <button
+                                                key={preset.key}
+                                                type="button"
+                                                onClick={() => applyPreset(preset.key)}
+                                                className="caption-mode-btn"
+                                                style={{ padding: '8px 14px' }}
+                                            >
+                                                {preset.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* AI Niche Helper */}
+                                <div style={{ background: 'rgba(255,255,255,0.02)', padding: 16, borderRadius: 12, border: '1px solid rgba(255,255,255,0.04)', marginBottom: 20 }}>
+                                    <label className="form-label" style={{ display: 'block', marginBottom: 6 }}>✨ AI Niche Helper</label>
+                                    <p style={{ color: 'var(--text-secondary)', fontSize: 12.5, margin: '0 0 12px 0' }}>Type your niche topic below to auto-generate fully optimized defaults with Gemini!</p>
+                                    <div style={{ display: 'flex', gap: 10 }}>
+                                        <input
+                                            className="form-input"
+                                            type="text"
+                                            placeholder="e.g. satisfying kinetic sand, diy woodcraft, street food review"
+                                            value={nicheInput}
+                                            onChange={e => setNicheInput(e.target.value)}
+                                            style={{ flex: 1 }}
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={generateAiDefaults}
+                                            disabled={aiDefaultsLoading || !nicheInput.trim()}
+                                            className="btn-primary"
+                                            style={{ padding: '10px 20px', minWidth: 160, fontSize: 13, background: 'linear-gradient(135deg, #A142F4, #8b25e2)', boxScale: '0 4px 14px rgba(161, 66, 244, 0.35)' }}
+                                        >
+                                            {aiDefaultsLoading ? 'Generating...' : '✨ Generate Niche'}
+                                        </button>
+                                    </div>
+                                </div>
+
                                 <div className="metadata-form">
                                     <div className="form-group full-width">
                                         <label className="form-label">Default Title</label>
@@ -298,6 +411,9 @@ export default function Home() {
                 )}
                 {activeWizard === 'ranking3' && (
                     <Ranking3Wizard onClose={() => setActiveWizard(null)} ytDefaults={ytDefaults} />
+                )}
+                {activeWizard === 'compile' && (
+                    <CompileWizard onClose={() => setActiveWizard(null)} ytDefaults={ytDefaults} />
                 )}
                 {activeWizard === 'discord' && (
                     <DiscordSetup onClose={() => setActiveWizard(null)} />

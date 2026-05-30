@@ -1196,3 +1196,13 @@ textarea.form-input {
   0%, 100% { box-shadow: 0 0 8px rgba(87, 242, 135, .5); }
   50% { box-shadow: 0 0 18px rgba(87, 242, 135, .8); }
 }
+
+/* ── Custom AI Spin Animation ── */
+.spin-animation {
+  animation: spin-kf 1.2s linear infinite;
+}
+
+@keyframes spin-kf {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}

@@ -383,4 +383,91 @@ function addTextToVideo3(inputVideo, videoTitle, captions, timestamps) {
     });
 }
 
-module.exports = { addTextToVideo, addTextToVideo3 };
+/**
+ * Add centered caption overlays for a clip compilation/meme video.
+ * Displays each caption only during its corresponding clip's active timestamp window.
+ */
+function addTextToVideoCompile(inputVideo, captions, timestamps) {
+    return new Promise((resolve, reject) => {
+        const rawFont = getFont();
+        if (!rawFont) {
+            return reject(new Error(
+                'No font file found. Please set FONT_PATH in server/.env to point to a .ttf font file.'
+            ));
+        }
+
+        const fontPath = escapeFontPath(rawFont);
+        console.log('Using font (escaped) for Compile:', fontPath);
+
+        const now = Date.now();
+        const outputVideo = path.join(path.dirname(inputVideo), `output_${now}.mp4`);
+
+        const captionSize = 64;
+        const border = 4;
+        const drawtexts = [];
+
+        // For compilation mode, we display each caption ONLY during its clip's active playback timeframe.
+        // It is horizontally centered and positioned in the lower-middle of the vertical frame (e.g. y=1500).
+        for (let i = 0; i < captions.length; i++) {
+            const tStart = timestamps[i] || 0;
+            const tEnd = timestamps[i + 1] || 999;
+
+            if (captions[i]) {
+                drawtexts.push(
+                    `drawtext=fontfile='${fontPath}'` +
+                    `:text='${escapeText(captions[i])}'` +
+                    `:enable='between(t,${tStart},${tEnd})'` +
+                    `:x=(w-text_w)/2:y=1500` +
+                    `:fontsize=${captionSize}:borderw=${border}:bordercolor=black:fontcolor=white`
+                );
+            }
+        }
+
+        const vfFilter = drawtexts.length > 0 ? drawtexts.join(',') : 'null';
+
+        const useGpu = (process.env.NVIDIA_GPU || 'false').trim().toLowerCase() === 'true';
+        const vcodec = useGpu ? 'h264_nvenc' : 'libx264';
+
+        const ffmpegArgs = [
+            '-i', inputVideo,
+        ];
+        if (drawtexts.length > 0) {
+            ffmpegArgs.push('-vf', vfFilter);
+        }
+        ffmpegArgs.push(
+            '-vcodec', vcodec,
+            '-preset', 'fast',
+            '-acodec', 'aac',
+            '-b:a', '192k',
+            '-pix_fmt', 'yuv420p',
+            '-movflags', '+faststart',
+            '-y',
+            outputVideo,
+        );
+
+        console.log('\n🖊️  Running ffmpeg text overlay (Compile)...');
+        const proc = spawn(ffmpegPath, ffmpegArgs, { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
+
+        let stderr = '';
+        proc.stderr.on('data', d => { stderr += d.toString(); });
+
+        proc.on('close', code => {
+            if (code !== 0) {
+                const errSnippet = stderr.slice(-800);
+                console.error('ffmpeg text overlay (Compile) error:', errSnippet);
+                return reject(new Error(`ffmpeg text overlay (Compile) failed (exit ${code}):\n${errSnippet}`));
+            }
+
+            // Delete input video
+            try { fs.unlinkSync(inputVideo); } catch { /* ignore */ }
+
+            console.log('✅ Text overlay complete (Compile):', outputVideo);
+            resolve(outputVideo);
+        });
+
+        proc.on('error', err => reject(new Error(`ffmpeg spawn error: ${err.message}`)));
+    });
+}
+
+module.exports = { addTextToVideo, addTextToVideo3, addTextToVideoCompile };
+

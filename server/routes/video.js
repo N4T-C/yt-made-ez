@@ -8,10 +8,10 @@ const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
 const { downloadInstagramReel, getNextBufferFolder } = require('../services/reelDownload');
 const { combineBuffer, combineBuffer3, probeClips, sortClips } = require('../services/combine');
-const { addTextToVideo, addTextToVideo3 } = require('../services/addText');
+const { addTextToVideo, addTextToVideo3, addTextToVideoCompile } = require('../services/addText');
 const { purgeAllVideos } = require('../services/cleanup');
 const { uploadToYouTube } = require('../services/youtubeUpload');
-const { generateCaptions, getRandomCaption } = require('../services/captionGenerator');
+const { generateCaptions, getRandomCaption, generateCaptionForClip } = require('../services/captionGenerator');
 const { classifyClip } = require('../services/classify');
 const { trimVideoInPlace } = require('../services/trimVideo');
 const { uploadToFilebin } = require('../services/filebinUpload');
@@ -103,7 +103,7 @@ router.post('/process', async (req, res) => {
             // ── Phase 2: Optional auto-caption ─────────────────────────────
             let finalCaptions = Array.isArray(captions) ? captions.map(c => String(c).trim()) : [];
             let orderedMeta = null;
-            let sortMode = 'duration';
+            let sortMode = 'provided';
 
             if (mode !== 'manual') {
                 emitUpdate(io, jobId, {
@@ -113,21 +113,14 @@ router.post('/process', async (req, res) => {
                 });
 
                 const clipMeta = await probeClips(bufferFolder, 5);
-                sortMode = 'duration';
+                sortMode = 'provided';
                 orderedMeta = sortClips(clipMeta, sortMode);
 
                 if (mode === 'ai') {
                     finalCaptions = [];
                     for (let i = 0; i < orderedMeta.length; i++) {
                         try {
-                            const result = await classifyClip(orderedMeta[i].filePath, {
-                                fallbackCaption: getRandomCaption(),
-                            });
-                            let cap = result.caption;
-                            // Enforce strict filter: If Gemma spits out "Clip 1" or "Clip 2", override it!
-                            if (/clip\s*\d*/i.test(cap) || cap.trim().toLowerCase() === 'clip') {
-                                cap = getRandomCaption();
-                            }
+                            const cap = await generateCaptionForClip(orderedMeta[i].filePath, finalCaptions);
                             finalCaptions.push(cap);
                         } catch (err) {
                             finalCaptions.push(getRandomCaption());
@@ -294,19 +287,13 @@ router.post('/process3', async (req, res) => {
                 });
 
                 const clipMeta = await probeClips(bufferFolder, 3);
-                orderedMeta = sortClips(clipMeta, 'duration');
+                orderedMeta = sortClips(clipMeta, 'provided');
 
                 if (mode === 'ai') {
                     finalCaptions = [];
                     for (let i = 0; i < orderedMeta.length; i++) {
                         try {
-                            const result = await classifyClip(orderedMeta[i].filePath, {
-                                fallbackCaption: getRandomCaption(),
-                            });
-                            let cap = result.caption;
-                            if (/clip\s*\d*/i.test(cap) || cap.trim().toLowerCase() === 'clip') {
-                                cap = getRandomCaption();
-                            }
+                            const cap = await generateCaptionForClip(orderedMeta[i].filePath, finalCaptions);
                             finalCaptions.push(cap);
                         } catch (err) {
                             finalCaptions.push(getRandomCaption());
@@ -318,7 +305,7 @@ router.post('/process3', async (req, res) => {
             } else {
                 // Manual mode — still need to probe and sort clips for consistency
                 const clipMeta = await probeClips(bufferFolder, 3);
-                orderedMeta = sortClips(clipMeta, 'duration');
+                orderedMeta = sortClips(clipMeta, 'provided');
             }
 
             // Safety net
@@ -510,6 +497,217 @@ router.post('/share', async (req, res) => {
     } catch (error) {
         console.error('Filebin upload error:', error.message);
         res.status(500).json({ error: error.message });
+    }
+});
+
+/**
+ * POST /api/video/process-compile
+ * Body: { links: string[], limitTotalDuration: boolean, trimIndividualClips: boolean, clipTrimLimit?: number }
+ */
+router.post('/process-compile', async (req, res) => {
+    const { links, limitTotalDuration, trimIndividualClips, clipTrimLimit } = req.body;
+    const io = req.app.get('io');
+
+    if (!Array.isArray(links) || links.length === 0 || links.some(l => !l || !l.trim())) {
+        return res.status(400).json({ error: 'At least one valid link is required' });
+    }
+
+    if (trimIndividualClips) {
+        const limit = Number(clipTrimLimit);
+        if (isNaN(limit) || limit < 1 || limit > 60) {
+            return res.status(400).json({ error: 'Individual clip limit must be between 1 and 60 seconds' });
+        }
+    }
+
+    const jobId = uuidv4();
+
+    jobs[jobId] = {
+        status: 'processing',
+        progress: 0,
+        message: 'Starting compilation download pipeline...',
+        outputFile: null,
+    };
+
+    res.json({ jobId });
+
+    setImmediate(async () => {
+        let bufferFolder = null;
+        let folderName = null;
+
+        try {
+            purgeAllVideos();
+
+            bufferFolder = getNextBufferFolder();
+            folderName = path.basename(bufferFolder);
+
+            const numClips = links.length;
+
+            // ── Phase 1: Download all clips ──────────────────────────────────
+            for (let i = 0; i < numClips; i++) {
+                emitUpdate(io, jobId, {
+                    status: 'processing',
+                    progress: Math.round(i * (50 / numClips)),
+                    message: `📥 Downloading clip ${i + 1} of ${numClips}...`,
+                });
+
+                await downloadInstagramReel(links[i], bufferFolder);
+
+                emitUpdate(io, jobId, {
+                    status: 'processing',
+                    progress: Math.round((i + 1) * (50 / numClips)),
+                    message: `✅ Clip ${i + 1} downloaded`,
+                });
+            }
+
+            // ── Phase 2: Probe, trim and sort clips ─────────────────────────
+            emitUpdate(io, jobId, {
+                status: 'processing',
+                progress: 52,
+                message: '🔍 Probing downloaded clips...',
+            });
+
+            let clipMeta = await probeClips(bufferFolder, numClips);
+            clipMeta = sortClips(clipMeta, 'provided');
+
+            // Trim individual clips if requested
+            if (trimIndividualClips) {
+                const limitSecs = Number(clipTrimLimit);
+                emitUpdate(io, jobId, {
+                    status: 'processing',
+                    progress: 55,
+                    message: `✂️ Trimming clips to ${limitSecs}s...`,
+                });
+
+                for (let i = 0; i < clipMeta.length; i++) {
+                    if (clipMeta[i].duration > limitSecs) {
+                        console.log(`[process-compile] Trimming clip ${clipMeta[i].video} from ${clipMeta[i].duration}s to ${limitSecs}s`);
+                        await trimVideoInPlace(clipMeta[i].filePath, limitSecs);
+                        clipMeta[i].duration = limitSecs;
+                    }
+                }
+            }
+
+            // ── Phase 3: Combine ───────────────────────────────────────────
+            emitUpdate(io, jobId, {
+                status: 'processing',
+                progress: 70,
+                message: `🎬 Combining ${clipMeta.length} clips into compilation...`,
+            });
+
+            const { names, timestamps, outputFile } = await combineBuffer(folderName, {
+                clipMeta,
+                sortMode: 'provided',
+            });
+
+            emitUpdate(io, jobId, {
+                status: 'processing',
+                progress: 85,
+                message: 'Processing compilation...',
+            });
+
+            // ── Phase 6: Limit total duration if toggle is on ─────────────
+            let finalVideoFile = outputFile;
+            if (limitTotalDuration) {
+                emitUpdate(io, jobId, {
+                    status: 'processing',
+                    progress: 90,
+                    message: '✂️ Trimming final compilation to 57s...',
+                });
+                finalVideoFile = await trimVideoInPlace(outputFile, 57);
+            }
+
+            // ── Done ───────────────────────────────────────────────────────
+            emitUpdate(io, jobId, {
+                status: 'ready',
+                progress: 100,
+                message: '🎉 Compilation ready! Set YouTube upload details.',
+                outputFile: finalVideoFile,
+            });
+
+        } catch (error) {
+            console.error(`[job:${jobId}] ERROR:`, error.message);
+            emitUpdate(io, jobId, {
+                status: 'error',
+                progress: jobs[jobId]?.progress || 0,
+                message: error.message,
+            });
+            purgeAllVideos();
+        }
+    });
+});
+
+/**
+ * POST /api/video/suggest-metadata
+ * Body: { videoTitle, captions: string[], category: string }
+ * Suggests YouTube Title, Description, and Tags using Gemini
+ */
+router.post('/suggest-metadata', async (req, res) => {
+    const { videoTitle, captions, category } = req.body;
+    const apiKey = String(process.env.GEMINI_API_KEY || '').trim();
+
+    if (!apiKey) {
+        return res.status(400).json({ error: 'No GEMINI_API_KEY set on the server.' });
+    }
+
+    try {
+        const { GoogleGenAI } = require('@google/genai');
+        const ai = new GoogleGenAI({ apiKey });
+        const model = process.env.GEMINI_MODEL || 'gemma-4-31b-it';
+
+        const prompt = [
+            'You are a professional YouTube Shorts SEO strategist.',
+            'Create search-optimized, viral metadata for a vertical video based on:',
+            `- Title overlay/theme: "${videoTitle || 'Compilation'}"`,
+            `- Scene Captions: ${Array.isArray(captions) ? captions.join(', ') : 'None'}`,
+            `- Niche Category: "${category || 'Entertainment'}"`,
+            '',
+            'Provide your output in strict JSON format. Do not use markdown tags, formatting, prefix, or suffix. Only return this exact structure:',
+            '{',
+            '  "title": "Short title under 80 chars with #Shorts and one other hashtag",',
+            '  "description": "Engaging description under 150 words with 3-5 keywords, bullet points, and popular hashtags like #viral, #Shorts",',
+            '  "tags": "10 comma-separated keywords and search terms"',
+            '}'
+        ].join('\n');
+
+        console.log(`[suggest-metadata] Sending prompt to ${model}...`);
+        const response = await ai.models.generateContent({
+            model: model,
+            contents: prompt,
+        });
+
+        // Helper to strip markdown and extract JSON
+        const rawText = String(response?.candidates?.[0]?.content?.parts?.map(p => p.text).join('') || response?.text || '')
+            .trim()
+            .replace(/^```json\s*/i, '')
+            .replace(/^```\s*/i, '')
+            .replace(/```\s*$/i, '')
+            .trim();
+
+        console.log(`[suggest-metadata] Cleaned response: ${rawText}`);
+
+        let parsed;
+        try {
+            parsed = JSON.parse(rawText);
+        } catch {
+            const m = rawText.match(/\{[^}]+\}/);
+            if (m) {
+                parsed = JSON.parse(m[0]);
+            }
+        }
+
+        if (!parsed) {
+            throw new Error('Failed to generate valid JSON metadata.');
+        }
+
+        res.json({
+            title: String(parsed.title || '').trim(),
+            description: String(parsed.description || '').trim(),
+            tags: String(parsed.tags || '').trim(),
+        });
+
+    } catch (err) {
+        console.error(`[suggest-metadata] error: ${err.message}`);
+        res.status(500).json({ error: err.message });
     }
 });
 

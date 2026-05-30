@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
     FaInstagram, FaYoutube, FaTimes, FaArrowRight, FaArrowLeft,
-    FaCheckCircle, FaUpload, FaExclamationCircle, FaExternalLinkAlt, FaCheck, FaUndo
+    FaCheckCircle, FaUpload, FaExclamationCircle, FaExternalLinkAlt, FaCheck, FaUndo, FaMagic
 } from 'react-icons/fa'
 import { io } from 'socket.io-client'
 import axios from 'axios'
@@ -108,6 +108,8 @@ export default function RankingWizard({ onClose, ytDefaults }) {
 
     // Track which fields have been "saved" (show green indicator on blur)
     const [savedFields, setSavedFields] = useState({})
+    const [aiAutofillLoading, setAiAutofillLoading] = useState(false)
+    const [aiAutofillSuccess, setAiAutofillSuccess] = useState(false)
 
     const showSaved = useCallback((fieldId) => {
         setSavedFields(prev => ({ ...prev, [fieldId]: true }))
@@ -251,6 +253,30 @@ export default function RankingWizard({ onClose, ytDefaults }) {
                 progress: 0,
                 message: err.response?.data?.error || err.message || 'Failed to start processing',
             })
+        }
+    }
+
+    const triggerAiAutofill = async () => {
+        setAiAutofillLoading(true)
+        setAiAutofillSuccess(false)
+        try {
+            const res = await axios.post(`${API_URL}/video/suggest-metadata`, {
+                videoTitle: videoTitle.trim(),
+                captions: captions.filter(Boolean),
+                category: meta.categoryId
+            })
+            setMeta(prev => ({
+                ...prev,
+                title: res.data.title || prev.title,
+                description: res.data.description || prev.description,
+                tags: res.data.tags || prev.tags
+            }))
+            setAiAutofillSuccess(true)
+            setTimeout(() => setAiAutofillSuccess(false), 2000)
+        } catch (err) {
+            console.error('AI autofill failed:', err)
+        } finally {
+            setAiAutofillLoading(false)
         }
     }
 
@@ -581,9 +607,13 @@ export default function RankingWizard({ onClose, ytDefaults }) {
                     {/* ── Step 3: YouTube Metadata ── */}
                     {step === 3 && (
                         <motion.div key="s3" custom={direction} variants={stepVariants} initial="enter" animate="center" exit="exit">
-                            <p style={{ color: 'var(--text-secondary)', marginBottom: 20, fontSize: 14 }}>
-                                ✅ Video processed! Now fill in the YouTube upload details.
-                            </p>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+                                <p style={{ color: 'var(--text-secondary)', fontSize: 14, margin: 0 }}>✅ Video processed! Now fill in the YouTube upload details.</p>
+                                <button className="caption-mode-btn" type="button" onClick={triggerAiAutofill} disabled={aiAutofillLoading} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '7px 14px', background: 'rgba(161, 66, 244, 0.15)', color: '#A142F4', borderColor: 'rgba(161, 66, 244, 0.3)', margin: 0 }}>
+                                    <FaMagic size={11} className={aiAutofillLoading ? 'spin-animation' : ''} />
+                                    {aiAutofillLoading ? 'AI Generating...' : aiAutofillSuccess ? 'Details Copied! ✨' : '✨ AI Autofill Details'}
+                                </button>
+                            </div>
                             <div className="metadata-form">
                                 <div className="form-group full-width">
                                     <label className="form-label">Video Title <SavedIndicator show={savedFields['yt-title']} /></label>

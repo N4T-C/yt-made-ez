@@ -69,3 +69,7 @@ __pycache__/
 *.pyd
 *.egg-info/
 .Python
+
+# ── Electron / Large Build Files ──────────────────────────────────────────────
+YT Made EZ/
+YT Made EZ/

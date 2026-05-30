@@ -15,7 +15,7 @@ const { GoogleGenAI } = require('@google/genai');
 const { ffmpegPath, ffprobePath } = require('ffmpeg-ffprobe-static');
 
 const MODEL = 'gemma-4-31b-it';
-const MAX_DURATION = 56; // seconds — Gemma hard limit is 60 s; use 56 for safety
+const MAX_DURATION = 56; // seconds — Gemma/Gemini hard limit is 60 s; use 56 for safety
 
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -87,7 +87,11 @@ function processClipForGemma(filePath, duration) {
 
         args.push(
             '-an',                              // strip audio
-            '-vcodec', 'copy',                  // copy video stream (fast, no re-encode)
+            '-vf', 'scale=320:-2,fps=10',       // downscale and reduce framerate to make buffer tiny
+            '-vcodec', 'libx264',
+            '-pix_fmt', 'yuv420p',
+            '-preset', 'ultrafast',
+            '-crf', '32',
             '-f', 'mp4',
             '-movflags', 'frag_keyframe+empty_moov', // fragmented mp4 for piping
             'pipe:1',

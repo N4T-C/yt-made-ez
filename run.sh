@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+﻿#!/usr/bin/env bash
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -51,7 +51,15 @@ ensure_ytdlp() {
   fi
 
   echo "Installing yt-dlp into $PYTHON_BIN environment..."
-  if run_python -m pip install --upgrade yt-dlp; then
+  if run_python -m pip install --upgrade yt-dlp 2>&1 | grep -q "externally-managed-environment"; then
+    echo "Note: PEP 668 restriction detected. Attempting with --break-system-packages..."
+    if run_python -m pip install --upgrade --break-system-packages yt-dlp >/dev/null 2>&1; then
+      echo "yt-dlp installed (with system override)."
+    else
+      echo "Warning: Could not auto-install yt-dlp (PEP 668 environment restriction)."
+      echo "To install: $PYTHON_BIN -m pip install --break-system-packages yt-dlp"
+    fi
+  elif run_python -m pip install --upgrade yt-dlp >/dev/null 2>&1; then
     echo "yt-dlp installed."
   else
     echo "Warning: Could not auto-install yt-dlp."
