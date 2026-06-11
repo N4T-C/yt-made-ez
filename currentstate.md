@@ -1,20 +1,23 @@
-# Current State (2026-05-16)
+# Current State (Updated 2026-06-12)
 
-- Electron migration scaffolding added (root package.json, electron/main.js, electron/preload.js, electron-builder.yml).
-- Electron main process now uses app.isPackaged for dev detection (no electron-is-dev dependency).
-- Server startup refactored into startServer(); production static serving added for client/dist.
-- Writable paths now honor YT_DATA_DIR for reels/buffer/combined cleanup; font lookup checks Electron resources.
-- Socket.IO clients now use window.location.origin for Electron/prod compatibility.
-- App icon not yet provided (electron-builder config currently has no icon).
+- **Excel-Based Application Authentication**:
+  - Implemented application-level login gate blocking site access until the user logs in with valid credentials.
+  - Verification database is `server/users.xlsx` containing Columns: `username` and `password`. Checked via server-side AND logic.
+  - Automatically preconfigured with `admin`/`admin123` and `natc`/`testingisnatc` credentials. Admins can update this Excel file dynamically without restarting the server.
+  
+- **Optional Google OAuth Redirects**:
+  - OAuth redirects were removed as a site-wide entry barrier. Landing page is accessed immediately after logging into the app.
+  - Google/YouTube credentials sync is now completely optional; users can connect their accounts from the Navbar or directly within Step 4 of the **Compile**, **Ranking 5**, and **Ranking 3** wizards when publishing videos.
 
-- README updated with Electron run/build steps and bundled FFmpeg note.
+- **Discord Ingest Automation Service**:
+  - Full Javascript port of the reference python ingest bot in `server/services/discordBot.js`.
+  - Stages downloaded clips under unique names (`caption__timestamp.mp4`) in category subfolders, preventing files with identical captions from overwriting each other.
+  - Automatically triggers when a category folder has exactly 5 clips: combines clips, trims to 57s, uploads compilation to Filebin, stages link to Discord channel, and purges local clips.
+  - Draws the exact top-aligned `"RANKING BEST [TITLE]"` title block in a single-pass scaling, padding, and text-overlay concat stream.
+  
+- **Wizard Back-Button Navigation**:
+  - Preview page (Step 2) in all wizards (**Compile**, **Ranking 5**, and **Ranking 3**) has its "Back" button re-routed to return to Step 0 (the link/caption inserting stage) instead of Step 1 (the loading animation).
 
-- Legacy Python folder removed; web app now owns all download/combine/overlay/trim/share logic.
-- Server pipeline supports manual captions plus auto captions (random or Gemma) and auto trims to MAX_OUTPUT_SECONDS.
-- Filebin sharing endpoint added; preview step can generate a shareable link.
-- server/.env and server/.env.example updated to include Gemma, Filebin, and Discord keys.
-- UI updated with caption-mode selector and Filebin share output.
-
-## Notes
-- Set FONT_PATH to server/fonts/OpenSansExtraBold.ttf (already bundled).
-- Auto captions using Gemma require GEMINI_API_KEY; otherwise it falls back to simple captions.
+- **API & Service Robustness**:
+  - Added strict prompt rules and post-processing filters in `classify.js` and `captionGenerator.js` to ensure the AI never returns `"..."` or punctuation-only captions, fallbacking to random viral keyword captions.
+  - Cleaned up obsolete tests folder and the reference python folder `yt-kitty-automate/`.

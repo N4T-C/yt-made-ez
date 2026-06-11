@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
     FaYoutube, FaTimes, FaArrowRight, FaArrowLeft,
-    FaCheckCircle, FaUpload, FaExclamationCircle, FaExternalLinkAlt, FaCheck, FaUndo, FaPlus, FaMinus, FaMagic
+    FaCheckCircle, FaUpload, FaExclamationCircle, FaExternalLinkAlt, FaCheck, FaUndo, FaPlus, FaMinus, FaMagic, FaGoogle
 } from 'react-icons/fa'
 import { io } from 'socket.io-client'
 import axios from 'axios'
@@ -33,7 +33,7 @@ function SavedIndicator({ show }) {
 }
 
 export default function CompileWizard({ onClose, ytDefaults }) {
-    const { tokens, isAuthenticated } = useAuth()
+    const { tokens, isAuthenticated, login } = useAuth()
     const savedRef = useRef(null)
     try {
         const raw = localStorage.getItem(WIZARD_STATE_KEY)
@@ -352,7 +352,7 @@ export default function CompileWizard({ onClose, ytDefaults }) {
                             {shareStatus === 'error' && <p style={{ color: '#EA4335', textAlign: 'center', fontSize: 13, marginBottom: 12 }}>{shareError || 'Filebin upload failed'}</p>}
                             {shareStatus === 'success' && shareUrl && <div className="share-link"><span className="share-label">Filebin URL</span><a href={shareUrl} target="_blank" rel="noreferrer">{shareUrl}</a></div>}
                             <div className="actions-row">
-                                <button className="btn-secondary" onClick={() => go(-1)}><FaArrowLeft /> Back</button>
+                                <button className="btn-secondary" onClick={() => { setStep(0); setDirection(-1); }}><FaArrowLeft /> Back</button>
                                 <button className="btn-primary" onClick={() => go(1)} style={{ background: 'linear-gradient(135deg, #A142F4, #8b25e2)' }}>Next: YT Details <FaArrowRight /></button>
                             </div>
                         </motion.div>
@@ -477,7 +477,10 @@ export default function CompileWizard({ onClose, ytDefaults }) {
                                         ) : (
                                             <>
                                                 <div style={{ fontSize: 48, marginBottom: 12 }}>🔐</div>
-                                                <p style={{ color: 'var(--text-secondary)', marginBottom: 24, fontSize: 15 }}>Please sign in from the top navigation bar to upload.</p>
+                                                <p style={{ color: 'var(--text-secondary)', marginBottom: 24, fontSize: 15 }}>Connect your Google/YouTube account to upload directly.</p>
+                                                <button className="google-signin-btn" onClick={login} style={{ margin: '0 auto' }}>
+                                                    <FaGoogle style={{ color: '#4285F4', marginRight: 8 }} /> Connect YouTube
+                                                </button>
                                             </>
                                         )}
                                     </div>

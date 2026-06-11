@@ -1,6 +1,14 @@
-# 🐱 yt-kitty-automate
+# 🐱 YT Made EZ Studio
 
 A full-stack web app that downloads 5 Instagram/YouTube clips, combines them into a single 1080×1920 vertical video, burns ranked captions and a title overlay onto the video, and uploads the final result directly to YouTube — all from your browser.
+
+---
+
+## 🔒 Application-Level Authentication (Excel Database)
+
+Access to this studio is protected by application-level credentials checked against `server/users.xlsx` in the backend. 
+- **Default Accounts**: Preconfigured with `admin` / `admin123` and `natc` / `testingisnatc`.
+- **Adding Users**: Open `server/users.xlsx` in Excel (or any spreadsheet software) and add new rows with columns `username` and `password`. The changes are loaded dynamically upon login requests without needing to restart the server.
 
 ---
 
@@ -346,10 +354,11 @@ and update consistently.
 
 ---
 
-# ✨ New Automation Features
+# ✨ Automation Features
 
-- **Auto captions**: Choose Manual, Random, or Gemini-powered captions in the wizard.
-- **Short-form trimming**: Finished videos are auto-trimmed to `MAX_OUTPUT_SECONDS` (default 56).
+- **Excel Auth**: High-performance gated application entrance.
+- **Discord Bot Ingest**: A JavaScript daemon inside `server/services/discordBot.js` that polls Discord channels for links, downscales/mutes and classifies them using Gemma, groups them into categories, and automatically compiles them into ranking videos once a category reaches exactly 5 clips.
+- **Auto captions**: Choose Manual, Random, or Gemini-powered captions in the wizards.
+- **Short-form trimming**: Finished videos are auto-trimmed to `MAX_OUTPUT_SECONDS` (default 56/57s).
 - **Filebin sharing**: Generate a shareable link from the preview step.
-
-These features are optional; if a key is missing (e.g., `GEMINI_API_KEY`), the app falls back gracefully.
+- **Wizard Navigation**: Improved preview back-button flow directly to the link/caption entry page.

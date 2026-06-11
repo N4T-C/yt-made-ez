@@ -42,7 +42,10 @@ function getNextBufferFolder() {
 /**
  * Move all video files from source into destination, renaming to clip_001.mp4 etc.
  */
-function moveToFolder(destination, source = REELS_DIR) {
+/**
+ * Move the downloaded video file to destination with targetName.
+ */
+function moveToFolderWithTargetName(destination, source, targetName) {
     if (!fs.existsSync(destination)) {
         fs.mkdirSync(destination, { recursive: true });
     }
@@ -57,12 +60,10 @@ function moveToFolder(destination, source = REELS_DIR) {
         );
     }
 
-    for (const filename of files) {
-        const existing = fs.readdirSync(destination).filter(f => f.endsWith('.mp4'));
-        const newName = `clip_${String(existing.length + 1).padStart(3, '0')}.mp4`;
-        fs.renameSync(path.join(source, filename), path.join(destination, newName));
-        console.log(`  ✅ Moved: ${filename} → ${newName}`);
-    }
+    // Rename first matching file to targetName
+    const filename = files[0];
+    fs.renameSync(path.join(source, filename), path.join(destination, targetName));
+    console.log(`  ✅ Moved: ${filename} → ${targetName}`);
 }
 
 function extractYouTubeIdFromUrl(urlObj) {
@@ -119,9 +120,10 @@ function normalizeDownloadUrl(rawUrl) {
  *
  * @param {string} url          - Instagram reel / YouTube video URL
  * @param {string} bufferFolder - Where to move the downloaded file
+ * @param {string} targetName   - Explicit name for the output file (e.g. clip_001.mp4)
  * @returns {Promise<void>}
  */
-function downloadInstagramReel(url, bufferFolder) {
+function downloadInstagramReel(url, bufferFolder, targetName = null) {
     return new Promise(async (resolve, reject) => {
         let reelUrl;
 
@@ -131,16 +133,14 @@ function downloadInstagramReel(url, bufferFolder) {
             return reject(err);
         }
 
+        const crypto = require('crypto');
+        const uniqueId = crypto.randomBytes(8).toString('hex');
+        const uniqueReelsDir = path.join(WRITABLE_ROOT, `reels_downloads_${uniqueId}`);
+
         try {
-            if (!fs.existsSync(REELS_DIR)) {
-                fs.mkdirSync(REELS_DIR, { recursive: true });
+            if (!fs.existsSync(uniqueReelsDir)) {
+                fs.mkdirSync(uniqueReelsDir, { recursive: true });
             }
-            try {
-                const leftovers = fs.readdirSync(REELS_DIR);
-                for (const f of leftovers) {
-                    fs.unlinkSync(path.join(REELS_DIR, f));
-                }
-            } catch { /* ignore */ }
 
             console.log(`\n📥 Downloading: ${reelUrl}`);
             await ytDlpx(reelUrl, {
@@ -149,16 +149,25 @@ function downloadInstagramReel(url, bufferFolder) {
                 noCheckCertificates: true,
                 format: 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best',
                 mergeOutputFormat: 'mp4',
-                output: path.join(REELS_DIR, '%(id)s.%(ext)s'),
+                output: path.join(uniqueReelsDir, '%(id)s.%(ext)s'),
                 ffmpegLocation: ffmpegPath,
             });
 
-            moveToFolder(bufferFolder, REELS_DIR);
-            fs.rmSync(REELS_DIR, { recursive: true, force: true });
-            fs.mkdirSync(REELS_DIR, { recursive: true });
-            console.log(`✅ Download complete → ${bufferFolder}`);
+            // If targetName not specified, name dynamically
+            const finalName = targetName || `clip_${Date.now()}_${Math.floor(Math.random() * 1000)}.mp4`;
+            moveToFolderWithTargetName(bufferFolder, uniqueReelsDir, finalName);
+            
+            // Clean up staging folder
+            try {
+                fs.rmSync(uniqueReelsDir, { recursive: true, force: true });
+            } catch {}
+            
+            console.log(`✅ Download complete → ${path.join(bufferFolder, finalName)}`);
             resolve();
         } catch (err) {
+            try {
+                fs.rmSync(uniqueReelsDir, { recursive: true, force: true });
+            } catch {}
             reject(new Error(`yt-dlp-exec failed for URL: ${reelUrl}\n${err.message}`));
         }
     });

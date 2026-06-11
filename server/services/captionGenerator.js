@@ -210,9 +210,10 @@ async function generateCaptionForClip(filePath, existingCaptions = []) {
             caption = words.slice(0, 2).join(' ');
         }
         
-        // Remove common generic fallback values that look bad
+        // Remove common generic fallback values that look bad or are just punctuation/placeholders (e.g. "...")
         const lower = caption.toLowerCase();
-        if (!caption || words.length === 0 || lower.includes('clip') || lower.includes('video') || lower.match(/clip\s*\d*/i)) {
+        const alphanumeric = caption.replace(/[^a-zA-Z0-9]/g, '').trim();
+        if (!caption || words.length === 0 || !alphanumeric || lower.includes('clip') || lower.includes('video') || lower.match(/clip\s*\d*/i)) {
             return getRandomCaption();
         }
 

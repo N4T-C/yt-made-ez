@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
     FaInstagram, FaYoutube, FaTimes, FaArrowRight, FaArrowLeft,
-    FaCheckCircle, FaUpload, FaExclamationCircle, FaExternalLinkAlt, FaCheck, FaUndo, FaMagic
+    FaCheckCircle, FaUpload, FaExclamationCircle, FaExternalLinkAlt, FaCheck, FaUndo, FaMagic, FaGoogle
 } from 'react-icons/fa'
 import { io } from 'socket.io-client'
 import axios from 'axios'
@@ -38,7 +38,7 @@ function SavedIndicator({ show }) {
 }
 
 export default function RankingWizard({ onClose, ytDefaults }) {
-    const { tokens, isAuthenticated } = useAuth()
+    const { tokens, isAuthenticated, login } = useAuth()
     // ── Load saved state from localStorage on mount ────────────────────────────
     const savedRef = useRef(null)
     try {
@@ -61,6 +61,11 @@ export default function RankingWizard({ onClose, ytDefaults }) {
     const [links, setLinks] = useState(saved?.links ?? ['', '', '', '', ''])
     const [captions, setCaptions] = useState(saved?.captions ?? ['', '', '', '', ''])
     const [captionMode, setCaptionMode] = useState(saved?.captionMode ?? 'manual')
+
+    // Trimming configs
+    const [limitTotalDuration, setLimitTotalDuration] = useState(saved?.limitTotalDuration ?? true)
+    const [trimIndividualClips, setTrimIndividualClips] = useState(saved?.trimIndividualClips ?? false)
+    const [clipTrimLimit, setClipTrimLimit] = useState(saved?.clipTrimLimit ?? 15)
 
     // Step 2 — job/processing
     const [jobId, setJobId] = useState(saved?.jobId ?? null)
@@ -145,11 +150,11 @@ export default function RankingWizard({ onClose, ytDefaults }) {
         clearTimeout(saveTimerRef.current)
         saveTimerRef.current = setTimeout(() => {
             localStorage.setItem(WIZARD_STATE_KEY, JSON.stringify({
-                step, videoTitle, links, captions, captionMode, meta, jobId,
+                step, videoTitle, links, captions, captionMode, limitTotalDuration, trimIndividualClips, clipTrimLimit, meta, jobId,
             }))
         }, 300)
         return () => clearTimeout(saveTimerRef.current)
-    }, [step, videoTitle, links, captions, captionMode, meta, jobId])
+    }, [step, videoTitle, links, captions, captionMode, limitTotalDuration, trimIndividualClips, clipTrimLimit, meta, jobId])
 
     // ── Dynamic template replacement ──────────────────────────────────────────
     useEffect(() => {
@@ -245,6 +250,9 @@ export default function RankingWizard({ onClose, ytDefaults }) {
                 captions: captions.map(c => c.trim()),
                 links: links.map(l => l.trim()),
                 captionMode,
+                limitTotalDuration,
+                trimIndividualClips,
+                clipTrimLimit: Number(clipTrimLimit),
             })
             setJobId(res.data.jobId)
         } catch (err) {
@@ -343,6 +351,9 @@ export default function RankingWizard({ onClose, ytDefaults }) {
         setLinks(['', '', '', '', ''])
         setCaptions(['', '', '', '', ''])
         setCaptionMode('manual')
+        setLimitTotalDuration(true)
+        setTrimIndividualClips(false)
+        setClipTrimLimit(15)
         setJobId(null)
         setJobStatus({ status: 'idle', progress: 0, message: 'Starting...' })
         setMeta({
@@ -362,9 +373,11 @@ export default function RankingWizard({ onClose, ytDefaults }) {
     }, [jobId])
 
     // ── Validation ────────────────────────────────────────────────────────────
+    const isClipLimitValid = !trimIndividualClips || (Number(clipTrimLimit) >= 1 && Number(clipTrimLimit) <= 60)
     const valid1 = videoTitle.trim() &&
         links.every(l => l.trim()) &&
-        (captionMode !== 'manual' || captions.every(c => c.trim()))
+        (captionMode !== 'manual' || captions.every(c => c.trim())) &&
+        isClipLimitValid
 
     // ── Helpers ───────────────────────────────────────────────────────────────
     const updateLink = (i, v) => setLinks(ls => ls.map((l, j) => j === i ? v : l))
@@ -489,7 +502,7 @@ export default function RankingWizard({ onClose, ytDefaults }) {
                             </span>
 
                             {/* 5 captions */}
-                            <label className="form-label" style={{ marginBottom: 10, display: 'block' }}>
+<label className="form-label" style={{ marginBottom: 10, display: 'block' }}>
                                 💬 Ranking Captions (shown as overlay text)
                             </label>
                             <div className="links-form">
@@ -509,6 +522,34 @@ export default function RankingWizard({ onClose, ytDefaults }) {
                                         <SavedIndicator show={savedFields[`cap-${i}`]} />
                                     </div>
                                 ))}
+                            </div>
+
+                            {/* Duration & Trimming Settings */}
+                            <label className="form-label" style={{ marginTop: 20, marginBottom: 12, display: 'block' }}>✂️ Duration & Trimming Constraints</label>
+                            <div style={{ background: 'var(--surface)', padding: 16, borderRadius: 12, border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 24 }}>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontSize: 14 }}>
+                                    <input type="checkbox" checked={limitTotalDuration} onChange={e => setLimitTotalDuration(e.target.checked)} style={{ width: 18, height: 18, cursor: 'pointer' }} />
+                                    Limit total output video to under 1 minute (57s)
+                                </label>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontSize: 14 }}>
+                                    <input type="checkbox" checked={trimIndividualClips} onChange={e => setTrimIndividualClips(e.target.checked)} style={{ width: 18, height: 18, cursor: 'pointer' }} />
+                                    Trim individual clips that are too long
+                                </label>
+
+                                <AnimatePresence>
+                                    {trimIndividualClips && (
+                                        <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} style={{ overflow: 'hidden', paddingLeft: 28 }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                                <span style={{ fontSize: 13.5, color: 'var(--text-secondary)' }}>Limit clip duration to:</span>
+                                                <input className="form-input" type="number" min={1} max={60} value={clipTrimLimit} onChange={e => setClipTrimLimit(e.target.value)} style={{ width: 80, padding: '6px 10px' }} />
+                                                <span style={{ fontSize: 13.5, color: 'var(--text-secondary)' }}>seconds</span>
+                                            </div>
+                                            {!isClipLimitValid && (
+                                                <p style={{ color: '#EA4335', fontSize: 11.5, marginTop: 6, margin: 0 }}>⚠️ Limit must be strictly between 1 and 60 seconds.</p>
+                                            )}
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
                             </div>
 
                             <div className="actions-row" style={{ marginTop: 24 }}>
@@ -598,7 +639,7 @@ export default function RankingWizard({ onClose, ytDefaults }) {
                                 </div>
                             )}
                             <div className="actions-row">
-                                <button className="btn-secondary" onClick={() => go(-1)}><FaArrowLeft /> Back</button>
+                                <button className="btn-secondary" onClick={() => { setStep(0); setDirection(-1); }}><FaArrowLeft /> Back</button>
                                 <button className="btn-primary" onClick={() => go(1)}>Next: YT Details <FaArrowRight /></button>
                             </div>
                         </motion.div>
@@ -778,8 +819,11 @@ export default function RankingWizard({ onClose, ytDefaults }) {
                                             <>
                                                 <div style={{ fontSize: 48, marginBottom: 12 }}>🔐</div>
                                                 <p style={{ color: 'var(--text-secondary)', marginBottom: 24, fontSize: 15 }}>
-                                                    Please sign in from the top navigation bar to upload.
+                                                    Connect your Google/YouTube account to upload directly.
                                                 </p>
+                                                <button className="google-signin-btn" onClick={login} style={{ margin: '0 auto' }}>
+                                                    <FaGoogle style={{ color: '#4285F4', marginRight: 8 }} /> Connect YouTube
+                                                </button>
                                             </>
                                         )}
                                     </div>

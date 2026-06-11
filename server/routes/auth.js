@@ -4,7 +4,65 @@
  */
 const express = require('express');
 const router = express.Router();
+const fs = require('fs');
+const path = require('path');
+const XLSX = require('xlsx');
 const { getAuthUrl, getTokensFromCode, getUserInfo, refreshAccessToken } = require('../services/youtubeUpload');
+
+/**
+ * POST /api/auth/login
+ * Body: { username, password }
+ * Validates against server/users.xlsx.
+ */
+router.post('/login', (req, res) => {
+    const { username, password } = req.body;
+
+    if (!username || !password) {
+        return res.status(400).json({ error: 'Username and password are required' });
+    }
+
+    const excelPath = path.join(__dirname, '..', 'users.xlsx');
+
+    // If Excel file doesn't exist, create one with default user: admin / admin123
+    if (!fs.existsSync(excelPath)) {
+        try {
+            const wb = XLSX.utils.book_new();
+            const wsData = [
+                ['username', 'password'],
+                ['admin', 'admin123']
+            ];
+            const ws = XLSX.utils.aoa_to_sheet(wsData);
+            XLSX.utils.book_append_sheet(wb, ws, 'Users');
+            XLSX.writeFile(wb, excelPath);
+            console.log(`Created default users.xlsx at ${excelPath}`);
+        } catch (err) {
+            console.error('Failed to create default users.xlsx:', err);
+        }
+    }
+
+    try {
+        const workbook = XLSX.readFile(excelPath);
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const users = XLSX.utils.sheet_to_json(worksheet);
+
+        // Check user exists using AND logic
+        const matchedUser = users.find(u => {
+            const uName = String(u.username || '').trim();
+            const uPass = String(u.password || '').trim();
+            return uName === String(username).trim() && uPass === String(password).trim();
+        });
+
+        if (matchedUser) {
+            return res.json({ success: true, user: { username: matchedUser.username } });
+        } else {
+            return res.status(401).json({ error: 'Invalid username or password' });
+        }
+    } catch (err) {
+        console.error('Error reading users.xlsx:', err);
+        return res.status(500).json({ error: 'Verification database error' });
+    }
+});
 
 /**
  * GET /api/auth/google

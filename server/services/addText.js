@@ -469,5 +469,12 @@ function addTextToVideoCompile(inputVideo, captions, timestamps) {
     });
 }
 
-module.exports = { addTextToVideo, addTextToVideo3, addTextToVideoCompile };
+module.exports = { 
+    addTextToVideo, 
+    addTextToVideo3, 
+    addTextToVideoCompile,
+    getFont,
+    escapeFontPath,
+    escapeText
+};
 

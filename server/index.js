@@ -108,8 +108,19 @@ function startServer(options = {}) {
   });
 }
 
+function stopServer() {
+  if (cleanupIntervalId) {
+    clearInterval(cleanupIntervalId);
+    cleanupIntervalId = null;
+  }
+  const io = app.get('io');
+  if (io) {
+    io.close();
+  }
+}
+
 if (require.main === module) {
   startServer().catch(() => process.exit(1));
 }
 
-module.exports = { startServer, app };
+module.exports = { startServer, stopServer, app };

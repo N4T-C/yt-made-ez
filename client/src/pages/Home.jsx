@@ -131,36 +131,36 @@ export default function Home() {
 
     return (
         <div className="page">
-            {/* Unskippable sign-in overlay when not authenticated */}
-            <AnimatePresence>
-                {!loading && !isAuthenticated && (
-                    <motion.div
-                        className="auth-overlay"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                    >
-                        <motion.div
-                            className="auth-overlay-card"
-                            initial={{ opacity: 0, scale: 0.9, y: 20 }}
-                            animate={{ opacity: 1, scale: 1, y: 0 }}
-                            transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-                        >
-                            <div style={{ fontSize: 48, marginBottom: 16 }}>🔐</div>
-                            <h2 style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 800, fontSize: 24, marginBottom: 8 }}>
-                                Sign in to Continue
-                            </h2>
-                            <p style={{ color: 'var(--text-secondary)', fontSize: 15, marginBottom: 28, maxWidth: 340, lineHeight: 1.6 }}>
-                                Sign in with your Google account to access YouTube automation tools.
-                            </p>
-                            <button className="google-signin-btn" onClick={login}>
-                                <FaGoogle style={{ color: '#4285F4', fontSize: 20 }} />
-                                Sign in with Google
-                            </button>
-                        </motion.div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
+            {/* Optional Google login prompt */}
+            {!isAuthenticated && (
+                <div style={{
+                    margin: '24px auto 0 auto',
+                    maxWidth: 1200,
+                    width: '90%',
+                    background: 'rgba(255,255,255,0.02)',
+                    backdropFilter: 'blur(10px)',
+                    border: '1px dashed rgba(161, 66, 244, 0.3)',
+                    borderRadius: 16,
+                    padding: '16px 24px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 16,
+                    flexWrap: 'wrap',
+                    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.15)'
+                }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <span style={{ fontSize: 22 }}>🔑</span>
+                        <div style={{ textAlign: 'left' }}>
+                            <h4 style={{ margin: 0, fontSize: 14.5, fontWeight: 700, color: '#ffffff' }}>Sign in to upload to YouTube directly</h4>
+                            <p style={{ margin: '2px 0 0 0', fontSize: 13, color: 'var(--text-secondary)' }}>You can still process, preview, and download your videos without linking a channel.</p>
+                        </div>
+                    </div>
+                    <button className="google-signin-btn" onClick={login} style={{ margin: 0, padding: '8px 18px', fontSize: 13.5, borderRadius: 10 }}>
+                        <FaGoogle style={{ color: '#4285F4', marginRight: 8 }} /> Sign in with Google
+                    </button>
+                </div>
+            )}
 
             {/* Hero */}
             <section className="hero" style={{ position: 'relative' }}>

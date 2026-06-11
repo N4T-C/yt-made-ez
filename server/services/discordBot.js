@@ -1,13 +1,17 @@
 /**
  * Discord Bot Service
  * Monitors a Discord channel for YouTube/Instagram links,
- * downloads the video, uploads to Filebin, and replies with the URL.
+ * downloads them to buffer/staging, classifies them with Gemini into staging category directories,
+ * and compiles them into a 5-clip ranking video once a category has exactly 5 clips.
  *
  * Ported from: yt-kitty-automate/functions/discord_bot.py
  */
 const { Client, GatewayIntentBits } = require('discord.js');
-const { downloadInstagramReel, getNextBufferFolder } = require('./reelDownload');
+const { downloadInstagramReel, getNextBufferFolder, BUFFER_DIR } = require('./reelDownload');
 const { uploadToFilebin } = require('./filebinUpload');
+const { classifyClip, parseTitleMap } = require('./classify');
+const { combineAndOverlaySinglePass, probeClips } = require('./combine');
+const { trimVideoInPlace } = require('./trimVideo');
 const path = require('path');
 const fs = require('fs');
 
@@ -142,72 +146,167 @@ async function pollHistory(client, io) {
 
             if (!linkUrl) continue;
 
+            const remainingText = msg.content.replace(linkUrl, '').trim();
+            const videoName = remainingText || linkUrl.split('/').filter(Boolean).pop();
+
             const platform = igMatch ? 'Instagram' : 'YouTube';
-            addLog(`📥 Downloading ${platform} video...`);
+            addLog(`📥 Downloading ${platform} video: "${videoName}"...`);
             if (io) io.emit('discord:status', getStatus());
 
+            // Create unique staging directory
+            const stagingFolder = path.join(BUFFER_DIR, 'staging_' + Date.now() + '_' + Math.floor(Math.random() * 1000));
+
             try {
-                await channel.send(`📥 Downloading ${platform} video...`);
+                await channel.send(`📥 Downloading ${platform} video: **${videoName}**...`);
 
-                // Download to a temp buffer folder
-                const bufferFolder = getNextBufferFolder();
-
-                await downloadInstagramReel(linkUrl, bufferFolder);
+                fs.mkdirSync(stagingFolder, { recursive: true });
+                await downloadInstagramReel(linkUrl, stagingFolder);
                 addLog(`✅ Downloaded from ${platform}`);
 
                 // Find the downloaded file
-                const files = fs.readdirSync(bufferFolder).filter(f => /\.(mp4|mkv|webm|mov|avi)$/i.test(f));
+                const files = fs.readdirSync(stagingFolder).filter(f => /\.(mp4|mkv|webm|mov|avi)$/i.test(f));
                 if (files.length === 0) {
                     await channel.send('❌ No video file found after download.');
                     addLog('❌ No video file found after download.');
                     continue;
                 }
 
-                const videoFile = path.join(bufferFolder, files[0]);
+                const videoFile = path.join(stagingFolder, files[0]);
 
-                // Upload to Filebin
-                addLog('🔗 Uploading to Filebin...');
+                // Classify with Gemini
+                addLog('🧠 Classifying video with Gemma...');
                 if (io) io.emit('discord:status', getStatus());
+                await channel.send('🧠 Classifying video content...');
 
-                // Temporarily set FILEBIN_KEY if provided
-                const origKey = process.env.FILEBIN_KEY;
-                if (botConfig.filebinKey) {
-                    process.env.FILEBIN_KEY = botConfig.filebinKey;
+                const { category, caption } = await classifyClip(videoFile, { fallbackCaption: videoName });
+
+                const safeCategory = String(category || 'other').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
+                const safeCaption = String(caption || 'clip').trim().replace(/[\\/:*?"<>|]/g, '');
+
+                const destDir = path.join(BUFFER_DIR, safeCategory);
+                if (!fs.existsSync(destDir)) {
+                    fs.mkdirSync(destDir, { recursive: true });
                 }
 
-                const url = await uploadToFilebin(videoFile, { deleteAfter: false });
+                const uniqueId = Date.now() + '_' + Math.floor(Math.random() * 1000);
+                const finalDestPath = path.join(destDir, `${safeCaption}__${uniqueId}.mp4`);
+                fs.renameSync(videoFile, finalDestPath);
+                addLog(`✅ Classified under [${safeCategory}]: "${safeCaption}"`);
+                await channel.send(`✅ Classified under category **${safeCategory}**: "${safeCaption}"`);
 
-                if (botConfig.filebinKey) {
-                    process.env.FILEBIN_KEY = origKey;
-                }
-
-                await channel.send(`✅ Ready! Filebin: ${url}`);
-                addLog(`✅ Uploaded to Filebin: ${url}`);
                 processedAny = true;
-
-                // Clean up buffer folder
-                try {
-                    for (const f of fs.readdirSync(bufferFolder)) {
-                        try { fs.unlinkSync(path.join(bufferFolder, f)); } catch { /* ignore */ }
-                    }
-                    fs.rmdirSync(bufferFolder);
-                } catch { /* ignore */ }
 
             } catch (err) {
                 await channel.send(`❌ Error: ${err.message}`).catch(() => {});
                 addLog(`❌ Error processing link: ${err.message}`);
+            } finally {
+                // Clean up staging folder
+                try {
+                    fs.rmSync(stagingFolder, { recursive: true, force: true });
+                } catch { /* ignore */ }
             }
         }
 
         // Mark as processed
         if (processedAny) {
             await channel.send('Flagged');
+            // Check folders for 5 clips combinations
+            await checkAndProcessCategoryFolders(channel, io);
         }
 
         if (io) io.emit('discord:status', getStatus());
 
     } catch (err) {
         addLog(`❌ Poll error: ${err.message}`);
+    }
+}
+
+/**
+ * Check subfolders in buffer/ directory. If any category has 5 clips, combine, overlay and upload.
+ */
+async function checkAndProcessCategoryFolders(channel, io) {
+    try {
+        if (!fs.existsSync(BUFFER_DIR)) return;
+
+        const subdirs = fs.readdirSync(BUFFER_DIR).filter(d => {
+            const fullPath = path.join(BUFFER_DIR, d);
+            // Check it is a directory and not a numeric folder (numeric folders are temporary manual compilation tasks)
+            return fs.statSync(fullPath).isDirectory() && isNaN(Number(d));
+        });
+
+        for (const dir of subdirs) {
+            const dirPath = path.join(BUFFER_DIR, dir);
+            const videoFiles = fs.readdirSync(dirPath).filter(f => /\.(mp4|mkv|webm|mov|avi)$/i.test(f));
+
+            if (videoFiles.length === 5) {
+                addLog(`🚀 Category "${dir}" has exactly 5 clips! Triggering compilation...`);
+                await channel.send(`🚀 Category **${dir}** has exactly 5 clips! Starting compilation...`);
+                if (io) io.emit('discord:status', getStatus());
+
+                try {
+                    // Probe clips to get accurate durations
+                    const probedClips = await probeClips(dirPath, 5);
+
+                    // Sort clips by duration ascending
+                    const sortedMeta = probedClips.sort((a, b) => a.duration - b.duration);
+
+                    // Get captions from filenames (split by __ to handle unique suffixes)
+                    const captions = sortedMeta.map(m => {
+                        const base = path.basename(m.filePath, path.extname(m.filePath));
+                        const cap = base.split('__')[0];
+                        return cap.replace(/_/g, ' ');
+                    });
+
+                    // Title mapping
+                    const titleMap = parseTitleMap();
+                    const videoTitle = (titleMap[dir] || dir).toUpperCase();
+
+                    addLog('🎬 Combining clips and rendering ranking text...');
+                    // Combine and overlay
+                    const { outputFile } = await combineAndOverlaySinglePass(dir, videoTitle, captions, {
+                        clipMeta: sortedMeta,
+                        sortMode: 'provided',
+                        useRankingBestLayout: true,
+                    });
+
+                    // Trim to 57 seconds
+                    addLog('✂️ Trimming final video to 57s...');
+                    const trimmedVideo = await trimVideoInPlace(outputFile, 57);
+
+                    // Upload to Filebin
+                    addLog('🔗 Uploading final ranking video to Filebin...');
+                    
+                    const origKey = process.env.FILEBIN_KEY;
+                    if (botConfig.filebinKey) {
+                        process.env.FILEBIN_KEY = botConfig.filebinKey;
+                    }
+
+                    const url = await uploadToFilebin(trimmedVideo, { deleteAfter: true });
+
+                    if (botConfig.filebinKey) {
+                        process.env.FILEBIN_KEY = origKey;
+                    }
+
+                    await channel.send(`🎉 **Compilation Complete for ${dir.toUpperCase()}!**\n🔗 Filebin Link: ${url}`);
+                    addLog(`✅ Combined and uploaded category "${dir}": ${url}`);
+
+                    // Clean up input clips
+                    for (const m of sortedMeta) {
+                        try {
+                            fs.unlinkSync(m.filePath);
+                        } catch (err) {
+                            console.error(`Failed to delete clip ${m.filePath}:`, err.message);
+                        }
+                    }
+
+                } catch (err) {
+                    await channel.send(`❌ Compilation error for ${dir}: ${err.message}`);
+                    addLog(`❌ Compilation error for "${dir}": ${err.message}`);
+                }
+            }
+        }
+    } catch (err) {
+        addLog(`❌ Check folders error: ${err.message}`);
     }
 }
 

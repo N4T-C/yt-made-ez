@@ -165,6 +165,7 @@ async function classifyClip(filePath, options = {}) {
         '2. Write a caption that is EXACTLY 1 or 2 words. Make it punchy, viral, and specific to what happens in the video.',
         '   - GOOD examples: "Insane", "Pure Skill", "Wild", "Clutch", "Legendary", "Big Energy", "Smooth Move".',
         '   - BAD examples: "Clip", "Video", "Rank", "YouTube", "Number One" — NEVER use these.',
+        '   - NEVER output "..." or dots or empty string or placeholders under any circumstances. If the video is unclear, write a catchy fallback like "Unreal".',
         '   - No special characters or symbols. Plain words only.',
         '3. Respond ONLY with strict JSON — no extra text, no markdown:',
         '   {"category":"chosen category","caption":"your caption"}',
@@ -226,7 +227,22 @@ async function classifyClip(filePath, options = {}) {
     }
 
     const category = String(parsed.category || categories[0] || 'other').trim();
-    const caption  = String(parsed.caption  || fallback).trim();
+    let caption  = String(parsed.caption  || '').trim();
+
+    // Clean up invalid or placeholder captions
+    const alphanumeric = caption.replace(/[^a-zA-Z0-9]/g, '').trim();
+    const lower = caption.toLowerCase();
+    
+    if (!caption || !alphanumeric || lower.includes('clip') || lower.includes('video') || lower === '...' || caption.replace(/[.\s_-]/g, '') === '') {
+        console.warn(`[classify] Invalid caption received: "${caption}" — using fallback/random caption.`);
+        const DEFAULT_CAPTIONS = [
+            'Epic', 'Insane', 'Wild', 'Clutch', 'Legendary', 'Big Energy', 'Smooth Move',
+            'Amazing', 'Unreal', 'Perfect', 'Classic', 'Iconic', 'Elite', 'Respect',
+            'Wow', 'Vibes', 'Mood', 'Goals', 'Clean', 'Pro', 'God Mode', 'GG', 'EZ'
+        ];
+        const randomChoice = DEFAULT_CAPTIONS[Math.floor(Math.random() * DEFAULT_CAPTIONS.length)];
+        caption = (fallback && fallback !== 'clip' && fallback !== 'Epic') ? fallback : randomChoice;
+    }
 
     console.log(`[classify] ✅ Caption: "${caption}" | Category: "${category}"`);
     return { category, caption, titleMap: parseTitleMap() };

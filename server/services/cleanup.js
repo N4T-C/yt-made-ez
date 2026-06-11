@@ -4,7 +4,6 @@
  */
 const fs = require('fs');
 const path = require('path');
-const glob = require('path');
 
 const BASE_DIR = process.env.YT_DATA_DIR || path.join(__dirname, '..');
 
